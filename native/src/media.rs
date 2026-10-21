@@ -6,6 +6,7 @@
 //! and re-runs once if it came out over the limit.
 
 use crate::i18n::{t, tf};
+use crate::settings::VideoPreset;
 use crate::toast::Outcome;
 use crate::util::{self, ext_lower, file_size, fmt_duration, human_size, sibling};
 use std::collections::{HashMap, HashSet, VecDeque};
@@ -88,6 +89,8 @@ pub struct Info {
     pub kbps: u32,
     pub video: Vec<Stream>,
     pub audio: Vec<Stream>,
+    pub subs: Vec<Stream>,
+    pub attachments: bool, // fonts for styled subtitles, inside MKV
 }
 
 impl Info {
@@ -207,8 +210,15 @@ pub fn parse_probe(text: &str) -> Info {
                     s.channels = 2;
                 }
                 info.audio.push(s);
+            } else if let Some(pos) = line.find(": Subtitle: ") {
+                last_video = None;
+                let codec = line[pos + 12..].split([' ', ',']).next().unwrap_or("").to_string();
+                info.subs.push(Stream { index: idx, codec, ..Default::default() });
             } else {
                 last_video = None;
+                if line.contains(": Attachment: ") {
+                    info.attachments = true;
+                }
             }
         } else if let Some(rest) = line.strip_prefix("displaymatrix: rotation of ") {
             if let Some(i) = last_video {
@@ -304,30 +314,74 @@ fn encoder_works(enc: &str) -> bool {
     ok
 }
 
+/// Video codec of an MP4/MKV encode.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
-enum H264 {
+enum Vc {
+    H264,
+    Hevc,
+    Av1,
+}
+
+impl Vc {
+    fn from_name(name: &str) -> Vc {
+        match name {
+            "h264" => Vc::H264,
+            "av1" => Vc::Av1,
+            _ => Vc::Hevc,
+        }
+    }
+}
+
+/// Which encoder runs it: a GPU one, the CPU library (x264, x265, libaom), Media Foundation, or
+/// plain MPEG-4 as the last resort.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum Enc {
     Nvenc,
     Qsv,
     Amf,
-    X264,
+    Cpu,
     Mf,
     Mpeg4,
 }
 
-fn h264_encoder(allow_gpu: bool) -> H264 {
+fn enc_name(vc: Vc, e: Enc) -> &'static str {
+    match (vc, e) {
+        (_, Enc::Mpeg4) => "mpeg4",
+        (Vc::H264, Enc::Nvenc) => "h264_nvenc",
+        (Vc::H264, Enc::Qsv) => "h264_qsv",
+        (Vc::H264, Enc::Amf) => "h264_amf",
+        (Vc::H264, Enc::Cpu) => "libx264",
+        (Vc::H264, Enc::Mf) => "h264_mf",
+        (Vc::Hevc, Enc::Nvenc) => "hevc_nvenc",
+        (Vc::Hevc, Enc::Qsv) => "hevc_qsv",
+        (Vc::Hevc, Enc::Amf) => "hevc_amf",
+        (Vc::Hevc, Enc::Cpu) => "libx265",
+        (Vc::Hevc, Enc::Mf) => "hevc_mf",
+        (Vc::Av1, Enc::Nvenc) => "av1_nvenc",
+        (Vc::Av1, Enc::Qsv) => "av1_qsv",
+        (Vc::Av1, Enc::Amf) => "av1_amf",
+        (Vc::Av1, Enc::Cpu) => "libaom-av1",
+        (Vc::Av1, Enc::Mf) => "av1_mf",
+    }
+}
+
+/// The best encoder this PC has for the codec; without any, H.264 stands in.
+fn pick_encoder(vc: Vc, allow_gpu: bool) -> (Vc, Enc) {
     if allow_gpu && crate::settings::get().gpu {
-        for (e, k) in [("h264_nvenc", H264::Nvenc), ("h264_qsv", H264::Qsv), ("h264_amf", H264::Amf)] {
-            if encoder_works(e) {
-                return k;
+        for e in [Enc::Nvenc, Enc::Qsv, Enc::Amf] {
+            if encoder_works(enc_name(vc, e)) {
+                return (vc, e);
             }
         }
     }
-    if has("libx264") {
-        H264::X264
-    } else if encoder_works("h264_mf") {
-        H264::Mf
+    if has(enc_name(vc, Enc::Cpu)) {
+        (vc, Enc::Cpu)
+    } else if encoder_works(enc_name(vc, Enc::Mf)) {
+        (vc, Enc::Mf)
+    } else if vc != Vc::H264 {
+        pick_encoder(Vc::H264, allow_gpu)
     } else {
-        H264::Mpeg4
+        (Vc::H264, Enc::Mpeg4)
     }
 }
 
@@ -341,42 +395,80 @@ fn s<T: ToString>(v: T) -> String {
     v.to_string()
 }
 
-fn h264_args(enc: H264, q: Quality, info: &Info) -> Vec<String> {
+/// Bitrate H.265 and AV1 need for the look H.264 gets at the same rate.
+fn rate_share(vc: Vc) -> f64 {
+    match vc {
+        Vc::H264 => 1.0,
+        Vc::Hevc => 0.6,
+        Vc::Av1 => 0.5,
+    }
+}
+
+fn video_args(vc: Vc, enc: Enc, q: Quality, info: &Info) -> Vec<String> {
     let rate = |b: u64| vec![s("-b:v"), s(b), s("-maxrate"), s(b * 3 / 2), s("-bufsize"), s(b * 2)];
-    let mut a: Vec<String> = match (enc, q) {
-        (H264::Nvenc, Quality::Crf(c)) => ["-c:v", "h264_nvenc", "-preset", "p5", "-tune", "hq", "-rc", "vbr", "-cq"]
-            .iter().map(|x| s(x)).chain([s(c + 2), s("-b:v"), s(0)]).collect(),
-        (H264::Nvenc, Quality::Bitrate(b)) => ["-c:v", "h264_nvenc", "-preset", "p5", "-tune", "hq", "-rc", "vbr", "-multipass", "fullres"]
-            .iter().map(|x| s(x)).chain(rate(b)).collect(),
-        (H264::Qsv, Quality::Crf(c)) => vec![s("-c:v"), s("h264_qsv"), s("-preset"), s("medium"), s("-global_quality"), s(c + 3)],
-        (H264::Qsv, Quality::Bitrate(b)) => [s("-c:v"), s("h264_qsv"), s("-preset"), s("medium")].into_iter().chain(rate(b)).collect(),
-        (H264::Amf, Quality::Crf(c)) => ["-c:v", "h264_amf", "-quality", "quality", "-rc", "cqp"].iter().map(|x| s(x))
-            .chain([s("-qp_i"), s(c + 1), s("-qp_p"), s(c + 3), s("-qp_b"), s(c + 5)]).collect(),
-        (H264::Amf, Quality::Bitrate(b)) => ["-c:v", "h264_amf", "-quality", "quality", "-rc", "vbr_peak"].iter().map(|x| s(x))
-            .chain(rate(b)).collect(),
-        (H264::X264, Quality::Crf(c)) => vec![s("-c:v"), s("libx264"), s("-preset"), s("faster"), s("-crf"), s(c)],
-        (H264::X264, Quality::Bitrate(b)) => vec![s("-c:v"), s("libx264"), s("-preset"), s("medium"), s("-b:v"), s(b)],
-        (H264::Mf, q) => {
-            let b = match q { Quality::Bitrate(b) => b, Quality::Crf(c) => estimate_bitrate(info, c) };
-            vec![s("-c:v"), s("h264_mf"), s("-b:v"), s(b)]
-        }
-        (H264::Mpeg4, q) => {
-            let mut v = vec![s("-c:v"), s("mpeg4")];
-            match q {
-                Quality::Bitrate(b) => v.extend(rate(b)),
-                Quality::Crf(_) => v.extend([s("-q:v"), s(3)]),
-            }
-            v
-        }
+    // Media Foundation has no quality mode, and AMD's AV1 counts QP on a 0-255 scale: both get a bitrate
+    let q = match (vc, enc, q) {
+        (Vc::Av1, Enc::Amf, Quality::Crf(c)) | (_, Enc::Mf, Quality::Crf(c)) =>
+            Quality::Bitrate((estimate_bitrate(info, c) as f64 * rate_share(vc)) as u64),
+        _ => q,
     };
+    // about the same look on each codec's own quality scale
+    let bump = match vc {
+        Vc::H264 => 0,
+        Vc::Hevc => 3,
+        Vc::Av1 => 8,
+    };
+    let mut a = vec![s("-c:v"), s(enc_name(vc, enc))];
+    match (enc, q) {
+        (Enc::Nvenc, Quality::Crf(c)) => a.extend(["-preset", "p5", "-tune", "hq", "-rc", "vbr", "-cq"].iter().map(|x| s(x))
+            .chain([s(c + 2 + bump), s("-b:v"), s(0)])),
+        (Enc::Nvenc, Quality::Bitrate(b)) => a.extend(["-preset", "p5", "-tune", "hq", "-rc", "vbr", "-multipass", "fullres"]
+            .iter().map(|x| s(x)).chain(rate(b))),
+        (Enc::Qsv, Quality::Crf(c)) => a.extend([s("-preset"), s("medium"), s("-global_quality"), s(c + 3 + bump)]),
+        (Enc::Qsv, Quality::Bitrate(b)) => a.extend([s("-preset"), s("medium")].into_iter().chain(rate(b))),
+        (Enc::Amf, Quality::Crf(c)) => {
+            a.extend(["-quality", "quality", "-rc", "cqp"].iter().map(|x| s(x))
+                .chain([s("-qp_i"), s(c + 1 + bump), s("-qp_p"), s(c + 3 + bump)]));
+            if vc == Vc::H264 {
+                a.extend([s("-qp_b"), s(c + 5)]);
+            }
+        }
+        (Enc::Amf, Quality::Bitrate(b)) => a.extend(["-quality", "quality", "-rc", "vbr_peak"].iter().map(|x| s(x)).chain(rate(b))),
+        (Enc::Cpu, Quality::Crf(c)) => match vc {
+            Vc::H264 => a.extend([s("-preset"), s("faster"), s("-crf"), s(c)]),
+            Vc::Hevc => a.extend([s("-preset"), s("fast"), s("-crf"), s(c + 5)]),
+            Vc::Av1 => a.extend([s("-crf"), s(c + 10), s("-b:v"), s(0)]),
+        },
+        (Enc::Cpu, Quality::Bitrate(b)) => match vc {
+            Vc::H264 => a.extend([s("-preset"), s("medium"), s("-b:v"), s(b)]),
+            Vc::Hevc => a.extend([s("-preset"), s("fast")].into_iter().chain(rate(b))),
+            Vc::Av1 => a.extend(rate(b)),
+        },
+        (Enc::Mf, Quality::Bitrate(b)) => a.extend([s("-b:v"), s(b)]),
+        (Enc::Mf, Quality::Crf(_)) => {}
+        (Enc::Mpeg4, Quality::Bitrate(b)) => a.extend(rate(b)),
+        (Enc::Mpeg4, Quality::Crf(_)) => a.extend([s("-q:v"), s(3)]),
+    }
+    if enc == Enc::Cpu {
+        match vc {
+            Vc::Hevc => a.extend([s("-x265-params"), s("log-level=error")]),
+            Vc::Av1 => a.extend(["-cpu-used", "6", "-row-mt", "1", "-tiles", "2x2"].iter().map(|x| s(x))),
+            Vc::H264 => {}
+        }
+    }
     // quality mode on easy-to-compress footage can come out bigger than the original: cap the rate
-    // near the source's (newer codecs need more room in H.264)
-    if let (Quality::Crf(_), H264::Nvenc | H264::X264, Some(src)) = (q, enc, source_video_bps(info)) {
+    // near the source's (going from a newer codec to H.264 needs more room)
+    if let (Quality::Crf(_), Enc::Nvenc | Enc::Cpu, Some(src)) = (q, enc, source_video_bps(info)) {
         let newer = info.video.first().is_some_and(|v| matches!(v.codec.as_str(), "hevc" | "vp9" | "av1"));
-        let cap = (src as f64 * if newer { 2.2 } else { 1.25 }).max(400_000.0) as u64;
+        let k = match (vc, newer) {
+            (Vc::H264, true) => 2.2,
+            (Vc::H264, false) | (_, true) => 1.25,
+            (_, false) => 1.0,
+        };
+        let cap = (src as f64 * k).max(400_000.0) as u64;
         a.extend([s("-maxrate"), s(cap), s("-bufsize"), s(cap * 2)]);
     }
-    a.extend([s("-pix_fmt"), s(if enc == H264::Qsv { "nv12" } else { "yuv420p" })]);
+    a.extend([s("-pix_fmt"), s(if enc == Enc::Qsv { "nv12" } else { "yuv420p" })]);
     a
 }
 
@@ -685,6 +777,7 @@ pub enum Op {
     Trim { start: f64, end: f64, fade_in: f64, fade_out: f64, fast: bool },
     Crop { x: u32, y: u32, w: u32, h: u32 },
     Speed { factor: f64, keep_pitch: bool },
+    Encode(VideoPreset),
 }
 
 impl Op {
@@ -695,6 +788,7 @@ impl Op {
             ("size", p) if p.ends_with('%') => Op::SizePercent(p.trim_end_matches('%').parse().ok()?),
             ("size", mb) => Op::SizeMb(mb.parse().ok()?),
             ("kbps", k) => Op::Bitrate(k.parse().ok()?),
+            ("enc", spec) => Op::Encode(VideoPreset::from_spec(spec)?),
             ("tool", "Rotate") => Op::Rotate,
             ("tool", "Mute") => Op::Mute,
             ("tool", "Audio") => Op::ExtractAudio,
@@ -707,7 +801,7 @@ impl Op {
         match self {
             Op::Convert(f) => tf("Converting to {}…", &[f]),
             Op::SizeMb(mb) => tf("Compressing to {} MB…", &[&mb.to_string()]),
-            Op::SizePercent(_) | Op::Bitrate(_) => t("Compressing…").into(),
+            Op::SizePercent(_) | Op::Bitrate(_) | Op::Encode(_) => t("Compressing…").into(),
             Op::Rotate => t("Rotating…").into(),
             Op::Mute => t("Removing the sound…").into(),
             Op::ExtractAudio => t("Saving the soundtrack…").into(),
@@ -735,6 +829,10 @@ struct Transcode<'a> {
     length: Option<f64>,
     duration: Option<f64>,
     gpu: bool,
+    vc: Vc,
+    subs: bool,
+    /// a custom preset's sound: codec (aac | opus | mp3 | copy) and kbps
+    audio: Option<(String, u32)>,
     extra: Vec<String>,
     input_opts: Vec<String>,
     _p: std::marker::PhantomData<&'a ()>,
@@ -743,8 +841,8 @@ struct Transcode<'a> {
 impl Default for Transcode<'_> {
     fn default() -> Self {
         Transcode { vf: vec![], af: vec![], q: Quality::Crf(CRF_CONVERT), kbps: None, copy: true, mute: false,
-                    start: None, length: None, duration: None, gpu: true, extra: vec![], input_opts: vec![],
-                    _p: std::marker::PhantomData }
+                    start: None, length: None, duration: None, gpu: true, vc: Vc::H264, subs: true, audio: None,
+                    extra: vec![], input_opts: vec![], _p: std::marker::PhantomData }
     }
 }
 
@@ -756,7 +854,7 @@ fn require_audio(info: &Info) -> Res<&Stream> {
     info.audio.first().ok_or_else(|| t("This video has no sound.").into())
 }
 
-fn video_codec_args(target: &str, info: &Info, q: Quality, gpu: bool) -> Res<(Vec<String>, H264)> {
+fn video_codec_args(target: &str, info: &Info, q: Quality, gpu: bool, vc: Vc) -> Res<(Vec<String>, (Vc, Enc))> {
     Ok(match target {
         "WEBM" => {
             if !has("libvpx-vp9") {
@@ -769,7 +867,7 @@ fn video_codec_args(target: &str, info: &Info, q: Quality, gpu: bool) -> Res<(Ve
             let mut v = vec![s("-c:v"), s("libvpx-vp9")];
             v.extend(quality);
             v.extend(["-row-mt", "1", "-deadline", "good", "-cpu-used", "5", "-pix_fmt", "yuv420p"].iter().map(|x| s(x)));
-            (v, H264::Mpeg4)
+            (v, (Vc::H264, Enc::Mpeg4))
         }
         "AVI" => {
             let mut v = vec![s("-c:v"), s("mpeg4"), s("-vtag"), s("XVID")];
@@ -778,13 +876,71 @@ fn video_codec_args(target: &str, info: &Info, q: Quality, gpu: bool) -> Res<(Ve
                 Quality::Bitrate(b) => v.extend([s("-b:v"), s(b)]),
             }
             v.extend([s("-pix_fmt"), s("yuv420p")]);
-            (v, H264::Mpeg4)
+            (v, (Vc::H264, Enc::Mpeg4))
         }
         _ => {
-            let enc = h264_encoder(gpu);
-            (h264_args(enc, q, info), enc)
+            let (vc, enc) = pick_encoder(vc, gpu);
+            let mut v = video_args(vc, enc, q, info);
+            if vc == Vc::Hevc && (target == "MP4" || target == "MOV") {
+                v.extend([s("-tag:v"), s("hvc1")]); // Apple players
+            }
+            (v, (vc, enc))
         }
     })
+}
+
+const TEXT_SUBS: &[&str] = &["subrip", "srt", "ass", "ssa", "mov_text", "webvtt", "text"];
+
+/// Subtitle (and MKV font) streams the target can carry; picture subtitles only fit in MKV.
+fn sub_args(target: &str, info: &Info) -> Vec<String> {
+    let mut a = vec![];
+    let to = match target {
+        "MKV" => None,
+        "MP4" | "MOV" => Some("mov_text"),
+        "WEBM" => Some("webvtt"),
+        _ => return a,
+    };
+    let mut n = 0;
+    for st in &info.subs {
+        let text = TEXT_SUBS.contains(&st.codec.as_str());
+        if to.is_some() && !text {
+            continue;
+        }
+        let codec = match to {
+            Some(c) => c,
+            None if st.codec == "mov_text" => "srt", // MKV has no mov_text
+            None => "copy",
+        };
+        a.extend([s("-map"), format!("0:{}", st.index), format!("-c:s:{n}"), s(codec)]);
+        n += 1;
+    }
+    if target == "MKV" && info.attachments {
+        a.extend([s("-map"), s("0:t"), s("-c:t"), s("copy")]);
+    }
+    a
+}
+
+/// Sound for a custom preset: the asked codec where the container takes it.
+fn preset_audio(target: &str, streams: &[Stream], codec: &str, kbps: u32) -> Res<Vec<String>> {
+    let allowed = container(target).audio;
+    let k = format!("{}k", kbps.clamp(32, 512));
+    let codec = if target == "WEBM" && !(codec == "copy" && streams.iter().all(|a| allowed.contains(&a.codec.as_str()))) {
+        "opus"
+    } else {
+        codec
+    };
+    let mut v = match codec {
+        "copy" if streams.iter().all(|a| allowed.contains(&a.codec.as_str())) => return Ok(vec![s("-c:a"), s("copy")]),
+        "opus" if has("libopus") => vec![s("-c:a"), s("libopus"), s("-b:a"), k, s("-ar"), s(48000)],
+        "mp3" if has("libmp3lame") => vec![s("-c:a"), s("libmp3lame"), s("-b:a"), k],
+        _ if target == "WEBM" => return Err(tf("This copy of ffmpeg can't make {} (it has no {} encoder).", &["WebM", "libopus"])),
+        "copy" => vec![s("-c:a"), s("aac"), s("-b:a"), format!("{}k", streams[0].kbps.clamp(128, 320))],
+        _ => vec![s("-c:a"), s("aac"), s("-b:a"), k],
+    };
+    if codec == "mp3" && streams[0].channels > 2 {
+        v.extend([s("-ac"), s(2)]);
+    }
+    Ok(v)
 }
 
 fn transcode(src: &Path, info: &Info, target: &str, out: &Path, o: Transcode, ctl: &Ctl) -> Res<PathBuf> {
@@ -798,14 +954,15 @@ fn transcode(src: &Path, info: &Info, target: &str, out: &Path, o: Transcode, ct
     }
     args.extend([s("-i"), file_arg(src)]);
     let mut two_pass = false;
-    let mut enc_used = H264::Mpeg4;
+    let mut enc_used = Enc::Mpeg4;
+    let mut with_subs = false;
     if AUDIO_ONLY.contains(&target) {
         let a = require_audio(info)?;
         args.extend([s("-map"), format!("0:{}", a.index), s("-vn"), s("-sn"), s("-dn")]);
         args.extend(audio_args(target, std::slice::from_ref(a), &o.af, o.kbps, o.copy)?);
     } else {
         let v = require_video(info)?;
-        args.extend([s("-map"), format!("0:{}", v.index), s("-sn"), s("-dn")]);
+        args.extend([s("-map"), format!("0:{}", v.index), s("-dn")]);
         if o.copy && o.vf.is_empty() && c.video.contains(&v.codec.as_str()) {
             args.extend([s("-c:v"), s("copy")]);
             if v.codec == "hevc" && (target == "MP4" || target == "MOV") {
@@ -815,16 +972,26 @@ fn transcode(src: &Path, info: &Info, target: &str, out: &Path, o: Transcode, ct
             let mut vf = o.vf.clone();
             vf.push("scale=trunc(iw/2)*2:trunc(ih/2)*2".into()); // 4:2:0 needs even sizes
             args.extend([s("-vf"), vf.join(",")]);
-            let (va, enc) = video_codec_args(target, info, o.q, o.gpu)?;
+            let (va, (vc, enc)) = video_codec_args(target, info, o.q, o.gpu, o.vc)?;
             enc_used = enc;
-            two_pass = enc == H264::X264 && matches!(o.q, Quality::Bitrate(_));
+            two_pass = vc == Vc::H264 && enc == Enc::Cpu && matches!(o.q, Quality::Bitrate(_));
             args.extend(va);
         }
         if o.mute || info.audio.is_empty() {
             args.push(s("-an"));
         } else {
             args.extend([s("-map"), s("0:a")]);
-            args.extend(audio_args(target, &info.audio, &o.af, o.kbps, o.copy)?);
+            match &o.audio {
+                Some((codec, kbps)) => args.extend(preset_audio(target, &info.audio, codec, *kbps)?),
+                None => args.extend(audio_args(target, &info.audio, &o.af, o.kbps, o.copy)?),
+            }
+        }
+        let subs = if o.subs { sub_args(target, info) } else { vec![] };
+        with_subs = !subs.is_empty();
+        if with_subs {
+            args.extend(subs);
+        } else {
+            args.push(s("-sn"));
         }
         if target == "MP4" || target == "MOV" {
             args.extend([s("-movflags"), s("+faststart")]);
@@ -860,10 +1027,16 @@ fn transcode(src: &Path, info: &Info, target: &str, out: &Path, o: Transcode, ct
         })
     };
     match run(&args) {
-        Err(e) if !is_cancel(&e) && matches!(enc_used, H264::Nvenc | H264::Qsv | H264::Amf) => {
+        Err(e) if !is_cancel(&e) && matches!(enc_used, Enc::Nvenc | Enc::Qsv | Enc::Amf) => {
             // a GPU encoder that passed the test can still fail on a real file: fall back to the CPU
             crate::logf!("GPU encode failed ({e}); retrying on the CPU");
             let o2 = Transcode { gpu: false, ..o };
+            transcode(src, info, target, out, o2, ctl)
+        }
+        Err(e) if !is_cancel(&e) && with_subs => {
+            // an odd subtitle stream the target won't take shouldn't cost the whole video
+            crate::logf!("encode with subtitles failed ({e}); retrying without them");
+            let o2 = Transcode { subs: false, ..o };
             transcode(src, info, target, out, o2, ctl)
         }
         r => r,
@@ -915,9 +1088,11 @@ fn has_cover(src: &Path) -> bool {
         .unwrap_or(false)
 }
 
-/// The biggest resolution a bitrate can carry cleanly (≥ 0.05 bits per pixel per frame).
-fn plan_scale(info: &Info, video_bps: f64) -> (Option<u32>, Option<f32>) {
+/// The biggest resolution a bitrate can carry cleanly (≥ 0.05 bits per pixel per frame in H.264;
+/// newer codecs get by on less).
+fn plan_scale(info: &Info, video_bps: f64, vc: Vc) -> (Option<u32>, Option<f32>) {
     let Some((w, h)) = info.size() else { return (None, None) };
+    let video_bps = video_bps / rate_share(vc);
     let fps = info.video[0].fps.max(1.0);
     let short = w.min(h);
     let mut fps_cap = None;
@@ -947,8 +1122,13 @@ fn compress_to(src: &Path, info: &Info, target_bytes: u64, label: &str, ctl: &Ct
     if size <= target_bytes {
         return Err(note(tf("It's {}, already under {}.", &[&human_size(size), label])));
     }
-    let out = sibling(src, label, "mp4");
-    let total = target_bytes as f64 * 8.0 / info.duration;
+    // MKV stays MKV so its subtitle tracks and fonts survive
+    let target = if ext_lower(src) == "mkv" { "MKV" } else { "MP4" };
+    let out = sibling(src, label, container(target).ext);
+    let vc = Vc::from_name(&crate::settings::get().video_codec);
+    // subtitles and fonts ride along as they are, so they come out of the budget
+    let extra = if target == "MKV" { side_streams_size(src, info, ctl) } else { 0 };
+    let total = target_bytes.saturating_sub(extra) as f64 * 8.0 / info.duration;
     let akbps: u32 = if info.audio.is_empty() { 0 } else if total > 2.0e6 { 128 } else if total > 800e3 { 96 } else if total > 300e3 { 64 } else { 48 };
     let mut video = total * 0.96 - akbps as f64 * 1000.0;
     if video < MIN_VIDEO_BPS {
@@ -956,18 +1136,17 @@ fn compress_to(src: &Path, info: &Info, target_bytes: u64, label: &str, ctl: &Ct
     }
     let mut attempt = 0;
     loop {
-        let (scale, fps) = plan_scale(info, video);
+        let (scale, fps) = plan_scale(info, video, vc);
         let mut vf = vec![];
         if let Some(sh) = scale {
-            // scale the short side, keep the aspect
-            let (w, h) = info.size().unwrap_or((0, 0));
-            vf.push(if w >= h { format!("scale=-2:{sh}") } else { format!("scale={sh}:-2") });
+            vf.push(scale_short(info, sh));
         }
         if let Some(f) = fps {
             vf.push(format!("fps={f}"));
         }
-        let o = Transcode { vf, q: Quality::Bitrate(video as u64), kbps: (akbps > 0).then_some(akbps), copy: false, ..Default::default() };
-        let p = transcode(src, info, "MP4", &out, o, ctl)?;
+        let o = Transcode { vf, q: Quality::Bitrate(video as u64), kbps: (akbps > 0).then_some(akbps), copy: false, vc,
+                            ..Default::default() };
+        let p = transcode(src, info, target, &out, o, ctl)?;
         let got = file_size(&p);
         if got <= target_bytes || attempt >= 1 {
             return Ok(p);
@@ -978,6 +1157,54 @@ fn compress_to(src: &Path, info: &Info, target_bytes: u64, label: &str, ctl: &Ct
         video *= target_bytes as f64 / got as f64 * 0.93;
         attempt += 1;
     }
+}
+
+/// Bytes the subtitle and font streams take in MKV (copied out once to find out).
+fn side_streams_size(src: &Path, info: &Info, ctl: &Ctl) -> u64 {
+    if info.subs.is_empty() && !info.attachments {
+        return 0;
+    }
+    let mut args = vec![s("-i"), file_arg(src), s("-vn"), s("-an")];
+    args.extend(sub_args("MKV", info));
+    let tmp = std::env::temp_dir().join(format!("dragshift-side-{}.mkv", std::process::id()));
+    args.extend([s("-f"), s("matroska"), file_arg(&tmp)]);
+    let ok = exec(args, 0.0, ctl, (0.0, 0.0)).is_ok();
+    let n = if ok { file_size(&tmp) } else { 0 };
+    let _ = std::fs::remove_file(&tmp);
+    n
+}
+
+/// A scale filter that brings the short side down to `short`, keeping the aspect.
+fn scale_short(info: &Info, short: u32) -> String {
+    let (w, h) = info.size().unwrap_or((0, 0));
+    if w >= h { format!("scale=-2:{short}") } else { format!("scale={short}:-2") }
+}
+
+const CRF_PRESET: u32 = 23;
+
+/// A custom preset from the Compress ring: the codecs, bitrates and size the user picked.
+fn encode(src: &Path, info: &Info, p: &VideoPreset, ctl: &Ctl) -> Res<PathBuf> {
+    require_video(info)?;
+    let target = if p.vcodec == "vp9" { "WEBM" } else if ext_lower(src) == "mkv" { "MKV" } else { "MP4" };
+    let mut vf = vec![];
+    if let Some((w, h)) = info.size() {
+        if p.height > 0 && p.height < w.min(h) {
+            vf.push(scale_short(info, p.height));
+        }
+    }
+    let mut label = vec![p.codec_name().to_string()];
+    if p.height > 0 {
+        label.push(format!("{}p", p.height));
+    }
+    let o = Transcode {
+        vf,
+        q: if p.vkbps > 0 { Quality::Bitrate(p.vkbps as u64 * 1000) } else { Quality::Crf(CRF_PRESET) },
+        copy: false,
+        vc: Vc::from_name(&p.vcodec),
+        audio: Some((p.acodec.clone(), p.akbps)),
+        ..Default::default()
+    };
+    transcode(src, info, target, &sibling(src, &label.join(" "), container(target).ext), o, ctl)
 }
 
 fn bitrate(src: &Path, info: &Info, kbps: u32, ctl: &Ctl) -> Res<PathBuf> {
@@ -1051,6 +1278,7 @@ pub fn run(op: &Op, src: &Path, ctl: &Ctl) -> Res<Vec<PathBuf>> {
             }
         }
         Op::Bitrate(k) => bitrate(src, &info, *k, ctl)?,
+        Op::Encode(p) => encode(src, &info, p, ctl)?,
         Op::Rotate => rotate(src, &info, ctl)?,
         Op::Mute => {
             require_video(&info)?;
@@ -1111,7 +1339,8 @@ pub fn run(op: &Op, src: &Path, ctl: &Ctl) -> Res<Vec<PathBuf>> {
             let af = if info.audio.is_empty() { vec![] } else if *keep_pitch || rate == 0 { atempo(*factor) } else {
                 vec![format!("asetrate={}", (rate as f64 * factor).round()), format!("aresample={rate}")]
             };
-            let o = Transcode { vf, af, copy: false, duration: Some(info.duration / factor), ..Default::default() };
+            // subtitles would keep the old timing
+            let o = Transcode { vf, af, copy: false, subs: false, duration: Some(info.duration / factor), ..Default::default() };
             transcode(src, &info, target, &sibling(src, &format!("{factor}x"), &ext), o, ctl)?
         }
     };
@@ -1152,7 +1381,7 @@ pub fn summarize(op: &Op, srcs: &[PathBuf], outs: &[PathBuf]) -> Outcome {
             let title = if n > 1 { tf("{} files → {}", &[&n.to_string(), f]) } else { format!("{src_ext} → {f}") };
             Outcome { title, detail: bits.join(" · "), good: String::new(), outs: outs.to_vec() }
         }
-        Op::SizeMb(_) | Op::SizePercent(_) | Op::Bitrate(_) => {
+        Op::SizeMb(_) | Op::SizePercent(_) | Op::Bitrate(_) | Op::Encode(_) => {
             let sizes = format!("{} → {}", human_size(before), human_size(after));
             let mut d = vec![sizes];
             d.extend(bits.into_iter().skip(1));
@@ -1204,6 +1433,75 @@ mod tests {
         let i = parse_probe(text);
         assert!(i.video.is_empty());
         assert_eq!(i.audio[0].bits, 24);
+    }
+
+    #[test]
+    fn keeps_subtitles_the_target_can_hold() {
+        let text = "Input #0, matroska,webm, from 'x.mkv':\n  Duration: 00:00:10.00, start: 0.000000, bitrate: 900 kb/s\n  Stream #0:0: Video: h264 (High), yuv420p(progressive), 1920x1080, 23.98 fps\n  Stream #0:1(rus): Audio: aac (LC), 48000 Hz, stereo, fltp\n  Stream #0:2(rus): Subtitle: ass (ssa) (default)\n  Stream #0:3(eng): Subtitle: hdmv_pgs_subtitle (pgssub), 1920x1080\n  Stream #0:4: Attachment: ttf\n";
+        let i = parse_probe(text);
+        assert_eq!(i.subs.iter().map(|s| s.codec.as_str()).collect::<Vec<_>>(), ["ass", "hdmv_pgs_subtitle"]);
+        assert!(i.attachments);
+        let mkv = sub_args("MKV", &i).join(" ");
+        assert_eq!(mkv, "-map 0:2 -c:s:0 copy -map 0:3 -c:s:1 copy -map 0:t -c:t copy");
+        assert_eq!(sub_args("MP4", &i).join(" "), "-map 0:2 -c:s:0 mov_text");
+        assert!(sub_args("AVI", &i).is_empty());
+    }
+
+    #[test]
+    fn preset_round_trips_through_the_menu_key() {
+        let p = VideoPreset { name: "x".into(), vcodec: "av1".into(), vkbps: 2500, height: 720, acodec: "opus".into(), akbps: 96 };
+        let back = VideoPreset::from_spec(p.key().strip_prefix("enc:").unwrap()).unwrap();
+        assert_eq!(VideoPreset { name: "x".into(), ..back }, p);
+        assert!(VideoPreset::from_spec("hevc,1,2").is_none());
+    }
+
+    /// Runs the bundled ffmpeg: `cargo test -- --ignored` with DRAGSHIFT_FFMPEG set.
+    #[test]
+    #[ignore]
+    fn encodes_with_real_ffmpeg() {
+        let dir = std::env::temp_dir().join(format!("dragshift-enc-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        std::env::set_var("APPDATA", &dir);
+        std::env::set_var("LOCALAPPDATA", &dir);
+        let srt = dir.join("subs.srt");
+        std::fs::write(&srt, "1\n00:00:00,500 --> 00:00:03,000\nПривет\n").unwrap();
+        let src = dir.join("clip.mkv");
+        let font = std::path::Path::new(r"C:\Windows\Fonts\arial.ttf");
+        let mk = [
+            "-f", "lavfi", "-i", "testsrc2=s=1280x720:r=30:d=4", "-f", "lavfi", "-i", "sine=f=440:d=4",
+        ].iter().map(|x| s(x)).chain([s("-i"), srt.display().to_string(), s("-attach"), font.display().to_string()])
+            .chain(["-metadata:s:t", "mimetype=application/x-truetype-font", "-map", "0", "-map", "1", "-map", "2",
+                    "-c:v", "libx264", "-c:a", "aac", "-c:s", "ass", "-y"].iter().map(|x| s(x)))
+            .chain([src.display().to_string()]).collect::<Vec<_>>();
+        assert!(command(&mk).unwrap().stderr(Stdio::null()).status().unwrap().success());
+        util::init_log();
+        let ctl = Ctl { cancel: Arc::new(AtomicBool::new(false)), progress: Box::new(|_| {}) };
+        let info = probe(&src).unwrap();
+        assert_eq!(info.subs.len(), 1);
+        assert!(info.attachments);
+
+        for gpu in [false, true] {
+            std::fs::create_dir_all(dir.join("DragShift")).unwrap();
+            std::fs::write(dir.join("DragShift").join("settings.json"), format!("{{\"gpu\": {gpu}}}")).unwrap();
+            crate::settings::load();
+            for (spec, codec, ext) in [("hevc,0,480,opus,96", "hevc", "mkv"), ("h264,800,0,mp3,128", "h264", "mkv"),
+                                       ("av1,500,360,copy,0", "av1", "mkv"), ("vp9,600,360,aac,96", "vp9", "webm")] {
+                let p = VideoPreset::from_spec(spec).unwrap();
+                let out = run(&Op::Encode(p), &src, &ctl).unwrap().remove(0);
+                assert_eq!(ext_lower(&out), ext);
+                let o = probe(&out).unwrap();
+                assert_eq!(o.video[0].codec, codec, "{spec}");
+                assert_eq!(o.subs.len(), 1, "{spec}: subtitles lost");
+            }
+            let half = run(&Op::SizePercent(50), &src, &ctl).unwrap().remove(0);
+            let o = probe(&half).unwrap();
+            assert_eq!((o.video[0].codec.as_str(), o.subs.len(), o.attachments), ("hevc", 1, true));
+            assert!(file_size(&half) <= file_size(&src) / 2 * 102 / 100, "gpu {gpu}: {} -> {}", file_size(&src), file_size(&half));
+        }
+        // MP4 gets the text track as mov_text
+        let mp4 = run(&Op::Convert("MP4".into()), &src, &ctl).unwrap().remove(0);
+        assert_eq!(probe(&mp4).unwrap().subs[0].codec, "mov_text");
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]

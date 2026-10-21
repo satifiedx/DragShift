@@ -12,8 +12,8 @@
 
 В [последнем релизе](../../releases/latest):
 
-- **DragShift-2.1.0-Setup.exe** (рекомендую). Ставится только для вашего пользователя, админ не нужен. Добавляет пункт в Пуск, автозапуск (по желанию), пункт **DragShift…** в контекстное меню и **Отправить → DragShift**. Удаляется начисто через Параметры → Приложения.
-- **DragShift-2.1.0-Portable.zip**. Распаковал и запустил `DragShift.exe`, ничего не ставится.
+- **DragShift-2.2.0-Setup.exe** (рекомендую). Ставится только для вашего пользователя, админ не нужен. Добавляет пункт в Пуск, автозапуск (по желанию), пункт **DragShift…** в контекстное меню и **Отправить → DragShift**. Удаляется начисто через Параметры → Приложения.
+- **DragShift-2.2.0-Portable.zip**. Распаковал и запустил `DragShift.exe`, ничего не ставится.
 
 Windows 10 и 11, 64 бита. ffmpeg уже внутри, ничего доустанавливать не надо.
 
@@ -25,7 +25,7 @@ Windows 10 и 11, 64 бита. ffmpeg уже внутри, ничего доус
 2. Возьмите любой **mp3/wav/flac**, начните тащить мышкой и, не отпуская, нажмите **Shift**. Под курсором откроется меню.
 3. Бросьте файл на **MP3**, **OPUS** или **FLAC**. Готовый файл появится рядом с оригиналом, оригинал не трогается.
 4. Каждое нажатие Shift во время перетаскивания переключает кольцо: **Конвертация → Инструменты → Сжатие**.
-5. Видео (**mp4/mkv/mov…**): кольцо **Сжатие** ужмёт ролик до 10, 25 или 50 МБ для Discord и мессенджеров. На видеокартах NVIDIA, Intel и AMD это в разы быстрее.
+5. Видео (**mp4/mkv/mov…**): кольцо **Сжатие** ужмёт ролик до 10, 25 или 50 МБ для Discord и мессенджеров, по умолчанию в H.265. На видеокартах NVIDIA, Intel и AMD это в разы быстрее. Кнопка **Свой пресет** там же: кодек, битрейт, разрешение и звук на ваш вкус.
 6. **Инструменты → Обрезать** открывает окно с волной и раскадровкой: тащите края, слушайте пробелом, ставьте затухания.
 7. Без перетаскивания: правый клик по файлу → **DragShift…**, **Отправить → DragShift**, или иконка в трее → **Открыть файл…**.
 8. Сделайте скриншот через **Win+Shift+S**, кликните иконку в трее → **Сохранить скриншот в «Изображения»** и выберите формат. Файл сразу ляжет в `Изображения\Screenshots`.
@@ -35,13 +35,13 @@ Windows 10 и 11, 64 бита. ffmpeg уже внутри, ничего доус
 | Файлы | Конвертация | Инструменты |
 |---|---|---|
 | **Аудио** mp3, m4a, aac, wav, flac, ogg, opus, aiff, wma, alac, amr, ape… | MP3, M4A, WAV, FLAC, OGG, OPUS, AIFF, WMA, ALAC | Обрезка с волной, нарастание и затухание, прослушка. Битрейт 320…64k. Скорость с сохранением тона |
-| **Видео** mp4, mkv, mov, webm, avi, wmv, flv, ts, 3gp… | MP4, MKV, WEBM, MOV, AVI, GIF, MP3, M4A, WAV | Сжать до 10/25/50 МБ или в 2 и 4 раза (GPU: NVENC, Quick Sync, AMF), обрезка, кадрирование, поворот без перекодирования, скорость, убрать звук, вытащить звук, стоп-кадр в PNG |
+| **Видео** mp4, mkv, mov, webm, avi, wmv, flv, ts, 3gp… | MP4, MKV, WEBM, MOV, AVI, GIF, MP3, M4A, WAV | Сжать до 10/25/50 МБ или в 2 и 4 раза в H.265 или H.264 (GPU: NVENC, Quick Sync, AMF), свои пресеты (H.265, H.264, AV1, VP9, битрейт, разрешение, AAC/Opus/MP3), обрезка, кадрирование, поворот без перекодирования, скорость, убрать звук, вытащить звук, стоп-кадр в PNG |
 | **Картинки** png, jpg, webp, heic, avif, tiff, bmp, gif, ico | PNG, JPG, WEBP, HEIC, TIFF, AVIF, BMP, PDF, ICO, GIF | Сжатие, размер, кадрирование, правка света и цвета, пометки, скрытие личного, фон, метаданные и GPS |
 | **PDF** | JPG, PNG, DOCX, TXT | Сжатие, разделение, поворот, объединение, пароль, достать картинки, метаданные |
 | **DOCX, TXT, MD, CSV…** | PDF, TXT, DOCX | |
 | **Excel, PowerPoint** xlsx, xlsm, xls, pptx, ppt | PDF | Если стоит Microsoft Office или LibreOffice, конвертирует через них. Без них DragShift сам рисует таблицы и слайды: текст, картинки, заливки, таблицы, шрифты презентации |
 
-Когда это возможно, DragShift вообще не перекодирует: смена контейнера, поворот MP4/MOV и быстрая обрезка копируют потоки как есть и делаются за доли секунды. Обложки альбомов и теги сохраняются. Битрейт выше исходного DragShift делать откажется, потому что файл только раздуется. А если ролик и так меньше 10 МБ, он просто скажет об этом и ничего не создаст.
+Субтитры и встроенные шрифты mkv сохраняются: сжатый mkv остаётся mkv, а в MP4 и WebM переезжают текстовые субтитры. Когда это возможно, DragShift вообще не перекодирует: смена контейнера, поворот MP4/MOV и быстрая обрезка копируют потоки как есть и делаются за доли секунды. Обложки альбомов и теги сохраняются. Битрейт выше исходного DragShift делать откажется, потому что файл только раздуется. А если ролик и так меньше 10 МБ, он просто скажет об этом и ничего не создаст.
 
 **Скриншоты из буфера.** Сделали скрин через Win+Shift+S или Print Screen, кликните иконку в трее. Там два пункта: **Сохранить скриншот в «Изображения»** (сразу в `Изображения\Screenshots`) и **Сохранить скриншот в папку…** (спросит папку и запомнит её). Форматы любые: PNG, JPG, WEBP, HEIC, TIFF, AVIF, BMP, PDF, ICO, GIF. Скопированные в Проводнике картинки тоже сохраняются. Когда в буфере нет картинки, пункты серые.
 
@@ -71,10 +71,10 @@ Windows 10 и 11, 64 бита. ffmpeg уже внутри, ничего доус
 
 | Файл | SHA-256 | VirusTotal |
 |---|---|---|
-| DragShift-2.1.0-Setup.exe | `b473c351223a37444704eb16c42b6ca6a9500fb3195ad4158db2a437e422a5ce` | [0/66](https://www.virustotal.com/gui/file/b473c351223a37444704eb16c42b6ca6a9500fb3195ad4158db2a437e422a5ce) |
-| DragShift-2.1.0-Portable.zip | `7047a4e6262199d064ca7c1d8727260596af1b484c4f07639dfddb5fb9fdffd8` | [1/65](https://www.virustotal.com/gui/file/7047a4e6262199d064ca7c1d8727260596af1b484c4f07639dfddb5fb9fdffd8) |
-| DragShift.exe (демон) | `7c37aa12312e4bd8af44c8b167536e97e7c29e1428225af83829a04915c6cbcb` | [1/70](https://www.virustotal.com/gui/file/7c37aa12312e4bd8af44c8b167536e97e7c29e1428225af83829a04915c6cbcb) |
-| ui\DragShiftUI.exe (окна редактора) | `7d149546d5ca2c0aaed7afb3af63fc4284c0e8245e9ee1c52186ece7b654ef64` | [2/71](https://www.virustotal.com/gui/file/7d149546d5ca2c0aaed7afb3af63fc4284c0e8245e9ee1c52186ece7b654ef64) |
+| DragShift-2.2.0-Setup.exe | `6450abba55dc2d4955506fdf3e415c75eba0a1bae15086315af03740328f3c1c` | [0/66](https://www.virustotal.com/gui/file/6450abba55dc2d4955506fdf3e415c75eba0a1bae15086315af03740328f3c1c) |
+| DragShift-2.2.0-Portable.zip | `173d31fb205754efbb0505444692abac99c056a2f5344af5f65ef9764a96c813` | [1/60](https://www.virustotal.com/gui/file/173d31fb205754efbb0505444692abac99c056a2f5344af5f65ef9764a96c813) |
+| DragShift.exe (демон) | `c48a9f63b6b1aa2667295481cb69d9faa75b3dba573069ec73ee2e83dd4c9761` | [1/70](https://www.virustotal.com/gui/file/c48a9f63b6b1aa2667295481cb69d9faa75b3dba573069ec73ee2e83dd4c9761) |
+| ui\DragShiftUI.exe (окна редактора) | `d7b6d47d7817739e632e9bb59e4b46f9f0652ea9930ec9a149140d92d5508e41` | [3/71](https://www.virustotal.com/gui/file/d7b6d47d7817739e632e9bb59e4b46f9f0652ea9930ec9a149140d92d5508e41) |
 | ffmpeg\ffmpeg.exe 8.0.1 | `5af82a0d4fe2b9eae211b967332ea97edfc51c6b328ca35b827e73eac560dc0d` | [0/69](https://www.virustotal.com/gui/file/5af82a0d4fe2b9eae211b967332ea97edfc51c6b328ca35b827e73eac560dc0d) |
 
 ![VirusTotal: установщик](docs/img/vt-setup.jpg)
@@ -85,7 +85,7 @@ Windows 10 и 11, 64 бита. ffmpeg уже внутри, ничего доус
 
 ![VirusTotal: портативный zip](docs/img/vt-portable.jpg)
 
-Установщик чистый. Срабатывания у бинарей ложные, и вот почему. **SecureAge** помечает «Malicious» почти любой свежий exe без платной цифровой подписи. **Zillya** называет `Trojan.Stealer` стандартный загрузчик PyInstaller, которым упакованы окна редактора; она же находит его внутри zip. Microsoft Defender, Kaspersky, ESET, Bitdefender, Avast, DrWeb, CrowdStrike и остальные 60+ движков ничего не видят. Код открыт, сборку можно повторить командой из раздела ниже и сравнить хеши.
+Установщик чистый. Срабатывания у бинарей ложные, и вот почему. **SecureAge** помечает «Malicious» почти любой свежий exe без платной цифровой подписи. **Zillya** называет `Trojan.Stealer` стандартный загрузчик PyInstaller, которым упакованы окна редактора; она же находит его внутри zip. **Microsoft** в 2.2.0 выдал на окна редактора `Wacatac.C!ml`: суффикс `!ml` значит, что это догадка нейросетки, а не сигнатура, и она часто цепляет неподписанные сборки PyInstaller. Kaspersky, ESET, Bitdefender, Avast, DrWeb, CrowdStrike и остальные 60+ движков ничего не видят. Код открыт, сборку можно повторить командой из раздела ниже и сравнить хеши.
 
 ## Безопасность
 
@@ -120,9 +120,15 @@ powershell -ExecutionPolicy Bypass -File packaging\build.ps1 -Python .venv\Scrip
 
 **Start dragging any file, press Shift, drop it on a slice of the menu.** Convert and edit images, PDFs, documents, **audio and video** right from File Explorer.
 
-**Download** from the [latest release](../../releases/latest): `DragShift-2.1.0-Setup.exe` (per-user, no admin, adds a right-click **DragShift…** entry and Send To) or `DragShift-2.1.0-Portable.zip`. Windows 10/11 x64, ffmpeg included.
+**Download** from the [latest release](../../releases/latest): `DragShift-2.2.0-Setup.exe` (per-user, no admin, adds a right-click **DragShift…** entry and Send To) or `DragShift-2.2.0-Portable.zip`. Windows 10/11 x64, ffmpeg included.
 
 **Try it:** install, drag an mp3 or a video, press Shift while dragging, drop it on MP3, OPUS or **25 MB**. Each Shift press while dragging switches the ring (Convert, Tools, Compress). **Tools → Trim** opens a waveform editor with fades and preview playback.
+
+**New in 2.2**
+- Video compression encodes to H.265 by default (about half the size of H.264 at the same quality); Settings → Compress video to switches back to H.264 for old devices.
+- **New preset** in the Compress ring: pick the video codec (H.265, H.264, AV1, VP9, each with a short note on when to use it), video bitrate, resolution, audio codec (AAC, Opus, MP3 or the original) and audio bitrate. Saved presets show up in the ring.
+- MKV keeps its subtitle tracks and fonts when compressed or converted; MP4 and WebM get the text subtitles.
+- The drag trigger survives Windows silently dropping the mouse hook (it happened after busy boots, leaving only the right-click menu working).
 
 **New in 2.1**
 - Excel and PowerPoint (xlsx, xlsm, xls, pptx, ppt) to PDF. Microsoft Office or LibreOffice does it when installed; without them DragShift draws the sheets and slides itself, with the presentation's own fonts.
@@ -148,7 +154,7 @@ powershell -ExecutionPolicy Bypass -File packaging\build.ps1 -Python .venv\Scrip
 
 On disk: 270 MB installed (daemon 1 MB, editor windows 174 MB, ffmpeg 95 MB); the installer is 69.5 MB, the portable zip 104 MB.
 
-**VirusTotal (2.1.0):** Setup.exe 0/66, Portable.zip 1/65, DragShift.exe 1/70, DragShiftUI.exe 2/71, ffmpeg.exe 0/69. Links and SHA-256 are in the table above. Setup is clean; the hits on the binaries are false positives: SecureAge flags almost any new unsigned exe, and Zillya calls the stock PyInstaller bootloader of the editor windows `Trojan.Stealer` (and finds it again inside the zip). Defender, Kaspersky, ESET, Bitdefender and 60+ other engines report nothing.
+**VirusTotal (2.2.0):** Setup.exe 0/66, Portable.zip 1/60, DragShift.exe 1/70, DragShiftUI.exe 3/71, ffmpeg.exe 0/69. Links and SHA-256 are in the table above. Setup is clean; the hits on the binaries are false positives: SecureAge flags almost any new unsigned exe, Zillya calls the stock PyInstaller bootloader of the editor windows `Trojan.Stealer` (and finds it again inside the zip), and Microsoft's `Wacatac.C!ml` is a machine-learning guess, not a signature, that often lands on unsigned PyInstaller builds. Kaspersky, ESET, Bitdefender and 60+ other engines report nothing.
 
 **Build:** Rust stable, Python 3.10+, Inno Setup 6, then `packaging\build.ps1` (see above). `DragShift.exe --selftest` runs 33 audio/video scenarios.
 

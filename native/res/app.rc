@@ -4,8 +4,8 @@
 1 24 "app.manifest"
 
 VS_VERSION_INFO VERSIONINFO
-FILEVERSION 2,1,0,0
-PRODUCTVERSION 2,1,0,0
+FILEVERSION 2,2,0,0
+PRODUCTVERSION 2,2,0,0
 FILEOS 0x40004
 FILETYPE 0x1
 BEGIN
@@ -15,11 +15,11 @@ BEGIN
     BEGIN
       VALUE "CompanyName", "DragShift"
       VALUE "FileDescription", "DragShift"
-      VALUE "FileVersion", "2.1.0"
+      VALUE "FileVersion", "2.2.0"
       VALUE "InternalName", "DragShift"
       VALUE "OriginalFilename", "DragShift.exe"
       VALUE "ProductName", "DragShift"
-      VALUE "ProductVersion", "2.1.0"
+      VALUE "ProductVersion", "2.2.0"
       VALUE "LegalCopyright", "MIT License"
     END
   END

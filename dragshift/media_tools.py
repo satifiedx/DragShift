@@ -909,4 +909,183 @@ class SpeedWindow(MediaWindow):
         self.close()
 
 
-WINDOWS = {"Trim": TrimWindow, "Crop": CropVideoWindow, "Speed": SpeedWindow}
+# ---------------------------------------------------------------- PRESET
+def load_presets() -> list[dict]:
+    from .settings import Settings
+    v = Settings()._load().get("video_presets")
+    return [p for p in v if isinstance(p, dict)] if isinstance(v, list) else []
+
+
+def save_presets(presets: list[dict]):
+    from .settings import Settings
+    Settings().set("video_presets", presets)
+
+
+def preset_text(p: dict) -> str:
+    """'H.265 · 720p · 2500 kbps · AAC 128k' for the list of saved presets."""
+    codec = dict(PresetWindow.VCODECS).get(p.get("vcodec"), "H.265")
+    bits = [codec]
+    if p.get("height"):
+        bits.append(f"{p['height']}p")
+    bits.append(tr("{} kbps", p["vkbps"]) if p.get("vkbps") else tr("by quality"))
+    audio = dict(PresetWindow.ACODECS).get(p.get("acodec"), "AAC")
+    bits.append(tr(audio) if p.get("acodec") == "copy" else f"{audio} {p.get('akbps', 128)}k")
+    return " · ".join(bits)
+
+
+class PresetWindow(MediaWindow):
+    """Pick every encoding setting by hand; the preset lands in the video Compress ring."""
+    VCODECS = [("hevc", "H.265"), ("h264", "H.264"), ("av1", "AV1"), ("vp9", "VP9")]
+    VHINTS = {
+        "hevc": "About half the size of H.264 at the same quality. Plays on phones, TVs and Windows 10/11.",
+        "h264": "Plays everywhere, even on old devices and in every messenger. Files come out bigger.",
+        "av1": "The smallest files, but slow to encode without a new graphics card. Old devices won't play it.",
+        "vp9": "Open format for the web (WebM): browsers, YouTube. The sound becomes Opus.",
+    }
+    ACODECS = [("aac", "AAC"), ("opus", "Opus"), ("mp3", "MP3"), ("copy", "Original")]
+    AHINTS = {
+        "aac": "The usual sound for MP4. Plays everywhere.",
+        "opus": "Best quality per kilobyte: voice and music stay clean at a low bitrate.",
+        "mp3": "Old but universal.",
+        "copy": "The sound stays as it is, no quality loss and no time spent.",
+    }
+    VRATES = [0, 500, 1000, 1500, 2500, 4000, 6000, 8000]
+    HEIGHTS = [0, 2160, 1440, 1080, 720, 480, 360]
+    ARATES = [64, 96, 128, 192, 256, 320]
+
+    def __init__(self, path, emit: Emit):
+        super().__init__("New preset", path, emit, size=(700, 720))
+        if not self.info.has_video:
+            from .util import UserError
+            raise UserError(tr("This file has no video, only sound."))
+        name_row = QHBoxLayout()
+        name_row.addWidget(QLabel(tr("Name")))
+        self.name = QLineEdit()
+        name_row.addWidget(self.name, 1)
+        self.body.addLayout(name_row)
+
+        self.body.addWidget(section("Video codec"))
+        row, self.vc = toggle_row([n for _, n in self.VCODECS])
+        self.body.addLayout(row)
+        self.vhint = self._hint()
+
+        self.body.addWidget(section("Video bitrate"))
+        row, self.vr = toggle_row([tr("Auto")] + [f"{r / 1000:g}M" for r in self.VRATES[1:]])
+        self.body.addLayout(row)
+
+        short = min(self.info.width, self.info.height) or 10 ** 6
+        self.heights = [h for h in self.HEIGHTS if h == 0 or h < short]
+        self.body.addWidget(section("Resolution"))
+        row, self.res = toggle_row([tr("Original")] + [f"{h}p" for h in self.heights[1:]])
+        self.body.addLayout(row)
+
+        self.body.addWidget(section("Audio codec"))
+        row, self.ac = toggle_row([n for _, n in self.ACODECS])
+        self.body.addLayout(row)
+        self.ahint = self._hint()
+        self.body.addWidget(section("Audio bitrate"))
+        row, self.ar = toggle_row([f"{k}k" for k in self.ARATES], self.ARATES.index(128))
+        self.body.addLayout(row)
+
+        self.estimate = QLabel()
+        self.estimate.setObjectName("big")
+        self.body.addWidget(self.estimate)
+
+        self.saved = QVBoxLayout()
+        self.body.addLayout(self.saved)
+        self.body.addStretch(1)
+        save_only = QPushButton(tr("Only save"))
+        save_only.clicked.connect(lambda: self.save(run=False))
+        self.body.addLayout(self.footer("Save and compress", lambda: self.save(run=True), extra=[save_only]))
+
+        for g in (self.vc, self.vr, self.res, self.ac, self.ar):
+            g.idClicked.connect(lambda _: self._update())
+        self._list_saved()
+        self._update()
+
+    def _hint(self) -> QLabel:
+        l = QLabel()
+        l.setObjectName("dim")
+        l.setWordWrap(True)
+        self.body.addWidget(l)
+        return l
+
+    def preset(self) -> dict:
+        p = {
+            "vcodec": self.VCODECS[self.vc.checkedId()][0],
+            "vkbps": self.VRATES[self.vr.checkedId()],
+            "height": self.heights[self.res.checkedId()],
+            "acodec": self.ACODECS[self.ac.checkedId()][0],
+            "akbps": self.ARATES[self.ar.checkedId()],
+        }
+        p["name"] = self.name.text().strip() or preset_text(p).split(" · ")[0] + (f" {p['height']}p" if p["height"] else "")
+        return p
+
+    def _update(self):
+        p = self.preset()
+        vp9 = p["vcodec"] == "vp9"
+        # WebM only takes Opus
+        for i, (c, _) in enumerate(self.ACODECS):
+            self.ac.button(i).setEnabled(self.info.has_audio and (not vp9 or c in ("opus", "copy")))
+        if vp9 and p["acodec"] in ("aac", "mp3"):
+            self.ac.button(1).setChecked(True)
+            p = self.preset()
+        self.vhint.setText(tr(self.VHINTS[p["vcodec"]]))
+        self.ahint.setText(tr(self.AHINTS[p["acodec"]]))
+        for b in self.ar.buttons():
+            b.setEnabled(p["acodec"] != "copy" and self.info.has_audio)
+        self.name.setPlaceholderText(p["name"])
+        d = self.info.duration
+        if p["vkbps"] and d:
+            akbps = p["akbps"] if self.info.has_audio and p["acodec"] != "copy" else 0
+            est = (p["vkbps"] + akbps) * 1000 / 8 * d
+            self.estimate.setText(tr("About {} for this file", human_size(int(est))))
+        else:
+            self.estimate.setText(tr("The size depends on the picture"))
+
+    def _list_saved(self):
+        while self.saved.count():
+            item = self.saved.takeAt(0)
+            lay = item.layout()
+            if lay is not None:
+                while lay.count():
+                    w = lay.takeAt(0).widget()
+                    if w is not None:
+                        w.deleteLater()
+            elif item.widget() is not None:
+                item.widget().deleteLater()
+        presets = load_presets()
+        if not presets:
+            return
+        self.saved.addWidget(section("Your presets"))
+        for i, p in enumerate(presets):
+            row = QHBoxLayout()
+            row.addWidget(QLabel(str(p.get("name") or "")))
+            info = QLabel(preset_text(p))
+            info.setObjectName("dim")
+            row.addWidget(info, 1)
+            rm = QPushButton(tr("Delete"))
+            rm.clicked.connect(lambda _=False, i=i: self._delete(i))
+            row.addWidget(rm)
+            self.saved.addLayout(row)
+
+    def _delete(self, i: int):
+        presets = load_presets()
+        if 0 <= i < len(presets):
+            del presets[i]
+            save_presets(presets)
+            self.emit({"ev": "settings"})
+        self._list_saved()
+
+    def save(self, run: bool):
+        p = self.preset()
+        presets = [q for q in load_presets() if {k: v for k, v in q.items() if k != "name"}
+                   != {k: v for k, v in p.items() if k != "name"}]
+        save_presets((presets + [p])[-12:])
+        self.emit({"ev": "settings"})
+        if run:
+            self.send("encode", **p)
+        self.close()
+
+
+WINDOWS = {"Trim": TrimWindow, "Crop": CropVideoWindow, "Speed": SpeedWindow, "Preset": PresetWindow}

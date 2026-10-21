@@ -30,6 +30,8 @@ static MOVED: AtomicBool = AtomicBool::new(false);
 static KEY_HELD: AtomicBool = AtomicBool::new(false);
 static CUR_X: AtomicI32 = AtomicI32::new(0);
 static CUR_Y: AtomicI32 = AtomicI32::new(0);
+/// Timestamp (GetTickCount clock) of the last event either hook saw.
+static LAST_EVENT: AtomicU32 = AtomicU32::new(0);
 
 pub fn set_key(name: &str) {
     KEY.store(match name { "ctrl" => 0x11, "alt" => 0x12, _ => 0x10 }, Relaxed);
@@ -69,7 +71,17 @@ fn try_fire() {
     }
 }
 
+/// The event's own timestamp (the same clock GetLastInputInfo uses).
+unsafe fn info_time(lp: LPARAM, mouse: bool) -> u32 {
+    if mouse {
+        (*(lp.0 as *const MSLLHOOKSTRUCT)).time
+    } else {
+        (*(lp.0 as *const KBDLLHOOKSTRUCT)).time
+    }
+}
+
 unsafe extern "system" fn mouse_proc(code: i32, wp: WPARAM, lp: LPARAM) -> LRESULT {
+    LAST_EVENT.store(info_time(lp, true), Relaxed);
     if code >= 0 {
         let info = &*(lp.0 as *const MSLLHOOKSTRUCT);
         let (x, y) = (info.pt.x, info.pt.y);
@@ -111,6 +123,7 @@ unsafe extern "system" fn mouse_proc(code: i32, wp: WPARAM, lp: LPARAM) -> LRESU
 }
 
 unsafe extern "system" fn key_proc(code: i32, wp: WPARAM, lp: LPARAM) -> LRESULT {
+    LAST_EVENT.store(info_time(lp, false), Relaxed);
     if code >= 0 {
         let info = &*(lp.0 as *const KBDLLHOOKSTRUCT);
         let vk = info.vkCode;
@@ -136,19 +149,59 @@ pub fn left_down() -> bool {
     DOWN.load(Relaxed)
 }
 
+unsafe fn install() -> (Option<HHOOK>, Option<HHOOK>) {
+    let m = SetWindowsHookExW(WH_MOUSE_LL, Some(mouse_proc), None, 0);
+    let k = SetWindowsHookExW(WH_KEYBOARD_LL, Some(key_proc), None, 0);
+    if m.is_err() || k.is_err() {
+        crate::logf!("hooks: failed to install (mouse {:?}, keyboard {:?})", m.is_ok(), k.is_ok());
+    }
+    (m.ok(), k.ok())
+}
+
+/// How long the system may see input our hooks never got before they count as lost.
+const LOST_AFTER_MS: u32 = 2000;
+const WATCH_MS: u32 = 3000;
+
 pub fn start(target: HWND) {
     TARGET.store(target.0 as isize, Relaxed);
     std::thread::Builder::new()
         .name("hooks".into())
         .stack_size(64 * 1024)
         .spawn(|| unsafe {
-            let m = SetWindowsHookExW(WH_MOUSE_LL, Some(mouse_proc), None, 0);
-            let k = SetWindowsHookExW(WH_KEYBOARD_LL, Some(key_proc), None, 0);
-            if m.is_err() || k.is_err() {
-                crate::logf!("hooks: failed to install (mouse {:?}, keyboard {:?})", m.is_ok(), k.is_ok());
+            let mut hooks = install();
+            let mut li = LASTINPUTINFO { cbSize: std::mem::size_of::<LASTINPUTINFO>() as u32, dwTime: 0 };
+            if GetLastInputInfo(&mut li).as_bool() {
+                LAST_EVENT.store(li.dwTime, Relaxed); // input from before we started isn't ours to see
             }
+            // Windows silently unhooks a low-level hook that once answered too slowly (a busy
+            // boot is enough), and then only the right-click menu works. Watch for input that
+            // never reached us and hook again.
+            let _ = SetTimer(None, 0, WATCH_MS, None);
+            let mut retry_at_event = u32::MAX;
+            let mut quiet_since = std::time::Instant::now();
             let mut msg = MSG::default();
             while GetMessageW(&mut msg, None, 0, 0).as_bool() {
+                if msg.message == WM_TIMER && msg.hwnd.0.is_null() {
+                    let mut li = LASTINPUTINFO { cbSize: std::mem::size_of::<LASTINPUTINFO>() as u32, dwTime: 0 };
+                    let seen = LAST_EVENT.load(Relaxed);
+                    if !GetLastInputInfo(&mut li).as_bool() || (li.dwTime.wrapping_sub(seen) as i32) < LOST_AFTER_MS as i32 {
+                        continue;
+                    }
+                    // still nothing since the last re-hook: input may be going to an elevated
+                    // window our hooks can't see, so only try again once a minute
+                    if seen == retry_at_event && quiet_since.elapsed().as_secs() < 60 {
+                        continue;
+                    }
+                    crate::logf!("hooks: input for {} ms never reached the hooks, installing them again",
+                                 li.dwTime.wrapping_sub(seen));
+                    for h in [hooks.0, hooks.1].into_iter().flatten() {
+                        let _ = UnhookWindowsHookEx(h);
+                    }
+                    hooks = install();
+                    retry_at_event = seen;
+                    quiet_since = std::time::Instant::now();
+                    continue;
+                }
                 let _ = TranslateMessage(&msg);
                 DispatchMessageW(&msg);
             }

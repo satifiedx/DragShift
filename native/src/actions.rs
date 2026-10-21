@@ -91,6 +91,19 @@ pub const VIDEO_TARGETS: &[&str] = &["MP4", "MKV", "WEBM", "MOV", "AVI", "GIF", 
 pub const AUDIO_TARGETS: &[&str] = &["MP3", "M4A", "WAV", "FLAC", "OGG", "OPUS", "AIFF", "WMA", "ALAC"];
 const SIZES_MB: &[u64] = &[10, 25, 50, 100];
 const BITRATES: &[u32] = &[320, 256, 192, 128, 96, 64];
+const MAX_PRESETS: usize = 4;
+
+/// "H.265 · 720p · 2500 kbps" for a preset's petal.
+fn preset_hint(p: &crate::settings::VideoPreset) -> String {
+    let mut bits = vec![p.codec_name().to_string()];
+    if p.height > 0 {
+        bits.push(format!("{}p", p.height));
+    }
+    if p.vkbps > 0 {
+        bits.push(format!("{} {}", p.vkbps, t("kbps")));
+    }
+    bits.join(" · ")
+}
 
 pub fn format_hint(f: &str) -> &'static str {
     match f {
@@ -224,6 +237,12 @@ pub fn rings_for(paths: &[PathBuf]) -> (Vec<Ring>, Option<Cat>) {
                 .collect();
             items.push(Item::tool("½", "⇲", "size:50%".into(), t("Half the size")));
             items.push(Item::tool("¼", "⇲", "size:25%".into(), t("A quarter of the size")));
+            // the newest custom presets, then the button that makes one
+            for p in crate::settings::get().video_presets.iter().rev().take(MAX_PRESETS) {
+                let name = if p.name.trim().is_empty() { p.codec_name().to_string() } else { p.name.clone() };
+                items.push(Item::tool(&name, "★", p.key(), &preset_hint(p)));
+            }
+            items.push(Item::tool(t("New preset"), "+", "tool:Preset".into(), t("Codec · bitrate · size")));
             rings.push(Ring { name: t("Compress").into(), items });
         }
         Cat::Audio => {

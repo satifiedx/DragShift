@@ -33,6 +33,7 @@ DEFAULTS = {
     "lang": "auto",
     "theme": "auto",
     "gpu": True,
+    "video_codec": "hevc",
     "ui_idle_seconds": 60,
     "enabled": True,
 }
@@ -141,6 +142,7 @@ OUTPUTS = [("next", "Next to the original"), ("folder", "In a “DragShift” su
 DPIS = [(150, "150 dpi · small"), (200, "200 dpi · balanced"), (300, "300 dpi · print")]
 LANGS = [("auto", "Same as Windows"), ("en", "English"), ("ru", "Русский"), ("uk", "Українська")]
 THEMES = [("auto", "Same as Windows"), ("dark", "Dark"), ("light", "Light")]
+VIDEO_CODECS = [("hevc", "H.265 · half the size"), ("h264", "H.264 · plays everywhere")]
 
 
 class SettingsWindow(GlassWindow):
@@ -148,7 +150,7 @@ class SettingsWindow(GlassWindow):
     quit_requested = Signal()
 
     def __init__(self, settings: Settings):
-        super().__init__(tr("Settings"), size=(560, 600))
+        super().__init__(tr("Settings"), size=(560, 650))
         self.s = settings
         grid = QGridLayout()
         grid.setHorizontalSpacing(14)
@@ -229,6 +231,12 @@ class SettingsWindow(GlassWindow):
         r += 1
         grid.addWidget(dim("NVIDIA NVENC, Intel Quick Sync or AMD AMF: several times faster video "
                            "compression. DragShift checks that it works and falls back to the CPU."), r, 1)
+        r += 1
+
+        grid.addWidget(label("Compress video to"), r, 0)
+        self.vcodec = combo(VIDEO_CODECS, self.s.get("video_codec"))
+        self.vcodec.currentIndexChanged.connect(lambda _: self._save("video_codec", self.vcodec.currentData()))
+        grid.addWidget(self.vcodec, r, 1)
         r += 1
 
         if IS_WIN or IS_MAC or IS_LINUX:

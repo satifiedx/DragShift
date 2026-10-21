@@ -1,6 +1,6 @@
 [package]
 name = "dragshift"
-version = "2.1.0"
+version = "2.2.0"
 edition = "2021"
 description = "DragShift background daemon: tray, Shift+drag trigger, radial menu, notifications and ffmpeg media jobs"
 license = "MIT"

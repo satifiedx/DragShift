@@ -414,6 +414,7 @@ impl App {
                     Some("speed") => Some(Op::Speed { factor: f("factor"),
                                                       keep_pitch: o.get("keep_pitch").and_then(Value::as_bool).unwrap_or(true) }),
                     Some("frame") => Some(Op::Frame(Some(f("at")))),
+                    Some("encode") => serde_json::from_value(o.clone()).ok().map(Op::Encode),
                     _ => None,
                 };
                 match op {

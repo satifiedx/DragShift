@@ -18,6 +18,49 @@ pub struct Settings {
     pub ui_idle_seconds: u32, // how long the editor process stays warm after its last window
     pub enabled: bool,
     pub shot_folder: String, // last folder picked for "Save screenshot to a folder"
+    pub video_codec: String, // hevc | h264: what Compress encodes video to
+    pub video_presets: Vec<VideoPreset>,
+}
+
+/// A compress preset made in the "New preset" window; shown in the video Compress ring.
+#[derive(Clone, Serialize, Deserialize, Debug, PartialEq)]
+#[serde(default)]
+pub struct VideoPreset {
+    pub name: String,
+    pub vcodec: String, // hevc | h264 | av1 | vp9
+    pub vkbps: u32,     // 0 = by quality
+    pub height: u32,    // short side; 0 = original
+    pub acodec: String, // aac | opus | mp3 | copy
+    pub akbps: u32,
+}
+
+impl Default for VideoPreset {
+    fn default() -> Self {
+        VideoPreset { name: String::new(), vcodec: "hevc".into(), vkbps: 0, height: 0, acodec: "aac".into(), akbps: 128 }
+    }
+}
+
+impl VideoPreset {
+    /// The menu key that carries the whole preset (so a running job never looks it up again).
+    pub fn key(&self) -> String {
+        format!("enc:{},{},{},{},{}", self.vcodec, self.vkbps, self.height, self.acodec, self.akbps)
+    }
+
+    pub fn from_spec(spec: &str) -> Option<VideoPreset> {
+        let p: Vec<&str> = spec.split(',').collect();
+        let [vc, vk, h, ac, ak] = p.as_slice() else { return None };
+        Some(VideoPreset { name: String::new(), vcodec: vc.to_string(), vkbps: vk.parse().ok()?, height: h.parse().ok()?,
+                           acodec: ac.to_string(), akbps: ak.parse().ok()? })
+    }
+
+    pub fn codec_name(&self) -> &'static str {
+        match self.vcodec.as_str() {
+            "h264" => "H.264",
+            "av1" => "AV1",
+            "vp9" => "VP9",
+            _ => "H.265",
+        }
+    }
 }
 
 impl Default for Settings {
@@ -34,6 +77,8 @@ impl Default for Settings {
             ui_idle_seconds: 60,
             enabled: true,
             shot_folder: String::new(),
+            video_codec: "hevc".into(),
+            video_presets: vec![],
         }
     }
 }
@@ -63,7 +108,13 @@ pub fn get() -> Settings {
 pub fn update(f: impl FnOnce(&mut Settings)) {
     let mut s = get();
     f(&mut s);
-    if let Ok(t) = serde_json::to_string_pretty(&s) {
+    // keys only the Python side knows stay in the file
+    let mut doc = std::fs::read_to_string(path()).ok()
+        .and_then(|t| serde_json::from_str::<serde_json::Map<String, serde_json::Value>>(&t).ok()).unwrap_or_default();
+    if let Ok(serde_json::Value::Object(m)) = serde_json::to_value(&s) {
+        doc.extend(m);
+    }
+    if let Ok(t) = serde_json::to_string_pretty(&doc) {
         let tmp = path().with_extension("json.tmp");
         if std::fs::write(&tmp, t).is_ok() {
             let _ = std::fs::rename(&tmp, path());
