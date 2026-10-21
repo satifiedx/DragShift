@@ -6,3 +6,4 @@ dist/
 .pytest_cache/
 .venv/
 e2e_*_out/
+native/target/

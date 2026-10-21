@@ -78,6 +78,9 @@ def output_dir(src: str | Path) -> Path:
 def sibling(src: str | Path, suffix_label: str = "", ext: str | None = None) -> Path:
     """Output path for `src`. sibling('a.jpg', 'Cropped') -> 'a Cropped.jpg' (never overwrites)."""
     s = output_dir(src) / Path(src).name
+    if suffix_label:
+        from .i18n import tr
+        suffix_label = tr(suffix_label)
     stem = f"{s.stem} {suffix_label}".strip() if suffix_label else s.stem
     new_ext = ext if ext is not None else s.suffix
     if not new_ext.startswith("."):
@@ -86,11 +89,12 @@ def sibling(src: str | Path, suffix_label: str = "", ext: str | None = None) -> 
 
 
 def human_size(n: int | float) -> str:
+    from .i18n import tr
     for unit in ("B", "KB", "MB", "GB"):
         if n < 1024 or unit == "GB":
-            return f"{n:.0f} {unit}" if unit == "B" else f"{n:.1f} {unit}"
+            return f"{n:.0f} {tr(unit)}" if unit == "B" else f"{n:.1f} {tr(unit)}"
         n /= 1024
-    return f"{n:.1f} GB"
+    return f"{n:.1f} {tr('GB')}"
 
 
 def file_size(path: str | Path) -> int:

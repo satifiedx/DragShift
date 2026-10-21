@@ -1,38 +1,66 @@
-; Inno Setup script — per-user install, no admin rights needed.
+; Inno Setup script: per-user install, no admin rights needed. Built by packaging\build.ps1.
 #define AppVersion GetEnv("DS_VERSION")
 #if AppVersion == ""
-  #define AppVersion "1.1.0"
+  #define AppVersion "2.0.0"
 #endif
 
 [Setup]
 AppId={{6C1E2B0A-7D5F-4E8B-9F3A-D7A5F1C2B3E4}
 AppName=DragShift
 AppVersion={#AppVersion}
+AppVerName=DragShift {#AppVersion}
 AppPublisher=DragShift
+AppPublisherURL=https://github.com/satifiedx/DragShift
+AppSupportURL=https://github.com/satifiedx/DragShift/issues
 DefaultDirName={localappdata}\Programs\DragShift
 DefaultGroupName=DragShift
 DisableProgramGroupPage=yes
+DisableDirPage=auto
 PrivilegesRequired=lowest
 OutputDir=..\dist
-OutputBaseFilename=DragShift-Setup
+OutputBaseFilename=DragShift-{#AppVersion}-Setup
 SetupIconFile=..\dragshift\assets\dragshift.ico
 UninstallDisplayIcon={app}\DragShift.exe
+UninstallDisplayName=DragShift
 Compression=lzma2/ultra64
 SolidCompression=yes
 WizardStyle=modern
-CloseApplications=yes
+CloseApplications=force
+CloseApplicationsFilter=DragShift.exe,DragShiftUI.exe,ffmpeg.exe
 RestartApplications=no
+ArchitecturesAllowed=x64compatible
+ArchitecturesInstallIn64BitMode=x64compatible
+MinVersion=10.0
+
+[Languages]
+Name: "en"; MessagesFile: "compiler:Default.isl"
+Name: "ru"; MessagesFile: "compiler:Languages\Russian.isl"
+
+[CustomMessages]
+en.Autostart=Start DragShift when I sign in to Windows
+ru.Autostart=Запускать DragShift при входе в Windows
+en.ContextMenu=Add "DragShift…" to the right-click menu for files
+ru.ContextMenu=Добавить «DragShift…» в контекстное меню файлов
+en.Desktop=Create a desktop shortcut
+ru.Desktop=Создать ярлык на рабочем столе
+en.LaunchNow=Launch DragShift now
+ru.LaunchNow=Запустить DragShift сейчас
 
 [Tasks]
-Name: "autostart"; Description: "Start DragShift when I sign in to Windows"; Flags: checkedonce
-Name: "contextmenu"; Description: "Add ""DragShift"" to the right-click menu for files"; Flags: checkedonce
-Name: "desktopicon"; Description: "Create a desktop shortcut"; Flags: unchecked
+Name: "autostart"; Description: "{cm:Autostart}"; Flags: checkedonce
+Name: "contextmenu"; Description: "{cm:ContextMenu}"; Flags: checkedonce
+Name: "desktopicon"; Description: "{cm:Desktop}"; Flags: unchecked
+
+[InstallDelete]
+; files of DragShift 1.x (one big Python app) that 2.x no longer uses
+Type: filesandordirs; Name: "{app}\_internal"
 
 [Files]
 Source: "..\dist\DragShift\*"; DestDir: "{app}"; Flags: recursesubdirs ignoreversion
 
 [Icons]
 Name: "{autoprograms}\DragShift"; Filename: "{app}\DragShift.exe"
+Name: "{autoprograms}\DragShift Settings"; Filename: "{app}\DragShift.exe"; Parameters: "--settings"
 Name: "{autodesktop}\DragShift"; Filename: "{app}\DragShift.exe"; Tasks: desktopicon
 Name: "{usersendto}\DragShift"; Filename: "{app}\DragShift.exe"
 
@@ -45,7 +73,12 @@ Root: HKCU; Subkey: "Software\Classes\*\shell\DragShift\command"; ValueType: str
 Root: HKCU; Subkey: "Software\DragShift"; Flags: uninsdeletekey
 
 [Run]
-Filename: "{app}\DragShift.exe"; Description: "Launch DragShift now"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\DragShift.exe"; Description: "{cm:LaunchNow}"; Flags: nowait postinstall skipifsilent
 
 [UninstallRun]
-Filename: "{cmd}"; Parameters: "/C taskkill /F /IM DragShift.exe"; Flags: runhidden; RunOnceId: "KillDragShift"
+; ask the running copy to quit (it cancels jobs and removes its tray icon), then make sure
+Filename: "{app}\DragShift.exe"; Parameters: "--quit"; Flags: runhidden waituntilterminated; RunOnceId: "QuitDragShift"
+Filename: "{sys}\taskkill.exe"; Parameters: "/F /T /IM DragShift.exe"; Flags: runhidden; RunOnceId: "KillDragShift"
+
+[UninstallDelete]
+Type: filesandordirs; Name: "{localappdata}\DragShift"

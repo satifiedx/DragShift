@@ -1,9 +1,7 @@
-name: End-to-end test (real Windows desktop)
+name: End-to-end test (real Windows desktop, 1.x Python app)
 
+# drives the 1.x all-Python app; Windows builds are the native daemon since 2.0, so manual only
 on:
-  push:
-    branches: [main, e2e]
-    paths-ignore: ["**.md", "docs/**"]
   workflow_dispatch:
 
 permissions:

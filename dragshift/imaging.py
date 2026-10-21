@@ -10,6 +10,7 @@ from PIL.ExifTags import GPSTAGS, TAGS
 
 from .convert import atomic_save, fitz, flatten, open_image, open_pdf, save_image
 from .util import sibling
+from .i18n import tr
 
 EXT_TARGET = {".jpg": "JPG", ".jpeg": "JPG", ".png": "PNG", ".webp": "WEBP", ".tif": "TIFF",
               ".tiff": "TIFF", ".bmp": "BMP", ".heic": "HEIC", ".heif": "HEIC",
@@ -292,7 +293,7 @@ def split_pdf(src: str | Path) -> list[Path]:
         for i in range(doc.page_count):
             nd = fitz.open()
             nd.insert_pdf(doc, from_page=i, to_page=i)
-            out = sibling(src, f"page {i + 1}", ".pdf")
+            out = sibling(src, tr("page {}", i + 1), ".pdf")
             nd.save(out)
             nd.close()
             outs.append(out)
@@ -351,7 +352,7 @@ def extract_pdf_images(src: str | Path) -> list[Path]:
                 outs.append(p)
     if not outs:
         from .util import UserError
-        raise UserError("No images found in this PDF.")
+        raise UserError(tr("No images found in this PDF."))
     return outs
 
 

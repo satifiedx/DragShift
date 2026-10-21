@@ -1,108 +1,99 @@
 # DragShift
 
-Convert and edit files on **Windows, Mac and Linux** with a liquid-glass radial menu. Start dragging any file, press **Shift**, and drop it on a slice.
+**Начните тащить любой файл, нажмите Shift и бросьте его на сектор стеклянного меню.** Конвертация и правка картинок, PDF, документов, **аудио и видео** прямо из Проводника, без открытия программ.
 
-![DragShift radial menu and Add BG editor](docs/preview.png)
+[English below](#english)
 
-## Download
+![DragShift](docs/preview.png)
 
-From the [latest release](../../releases/latest):
+## Скачать
 
-- **DragShift-Setup.exe** (recommended): installs for your user only, so no admin rights are needed. It adds a Start menu entry, an option to start with Windows, a right-click **DragShift…** entry and a **Send to → DragShift** entry. It uninstalls cleanly from Settings → Apps.
-- **DragShift.exe**: a portable version you can run from anywhere.
+В [последнем релизе](../../releases/latest):
 
-**Mac (easiest, no security warning):** paste this into Terminal:
+- **DragShift-2.0.0-Setup.exe** (рекомендую). Ставится только для вашего пользователя, админ не нужен. Добавляет пункт в Пуск, автозапуск (по желанию), пункт **DragShift…** в контекстное меню и **Отправить → DragShift**. Удаляется начисто через Параметры → Приложения.
+- **DragShift-2.0.0-Portable.zip**. Распаковал и запустил `DragShift.exe`, ничего не ставится.
 
-```bash
-curl -fsSL https://raw.githubusercontent.com/llamaboi55/DragShift/main/install-mac.sh | bash
-```
+Windows 10 и 11, 64 бита. ffmpeg уже внутри, ничего доустанавливать не надо.
 
-It picks the right build for your Mac, installs it to Applications and opens it ([see what it does](install-mac.sh)). Run the same line again to update.
+> SmartScreen может ругнуться, потому что exe не подписан платным сертификатом. Жмите **Подробнее → Выполнить в любом случае**. Хеши файлов лежат в `SHA256SUMS.txt` рядом с релизом.
 
-Or download the .dmg yourself:
-- **DragShift-mac-apple-silicon.dmg**: for Macs with M1, M2, M3 or M4 chips (macOS 11 or later).
-- **DragShift-mac-intel.dmg**: for Intel Macs.
+## Протестить за 2 минуты
 
-Open the .dmg and drag **DragShift** into Applications. DragShift lives in the menu bar and has no Dock icon. You can also right-click any file → **Open With → DragShift**.
+1. Поставьте DragShift-Setup.exe и оставьте галку «Запустить». Справа внизу появится карточка «DragShift готов», а в трее иконка.
+2. Возьмите любой **mp3/wav/flac**, начните тащить мышкой и, не отпуская, нажмите **Shift**. Под курсором откроется меню.
+3. Бросьте файл на **MP3**, **OPUS** или **FLAC**. Готовый файл появится рядом с оригиналом, оригинал не трогается.
+4. Ещё раз Shift во время перетаскивания переключает кольца: **Конвертация → Инструменты → Сжатие**.
+5. Видео (**mp4/mkv/mov…**): кольцо **Сжатие** ужмёт ролик до 10, 25 или 50 МБ для Discord и мессенджеров. На видеокартах NVIDIA, Intel и AMD это в разы быстрее.
+6. **Инструменты → Обрезать** открывает окно с волной и раскадровкой: тащите края, слушайте пробелом, ставьте затухания.
+7. Без перетаскивания: правый клик по файлу → **DragShift…**, **Отправить → DragShift**, или иконка в трее → **Открыть файл…**.
 
-**Linux (Debian, Ubuntu, Mint, MX… with XFCE, MATE, Cinnamon or any X11 desktop):** download **DragShift-linux-amd64.deb**, then run:
+## Что умеет
 
-```bash
-sudo apt install ./DragShift-linux-amd64.deb
-```
-
-Open **DragShift** from the app menu. It sits in the panel's notification area, and you can turn on *Start at login* in Settings. It works in Thunar, Nautilus, Nemo, Caja, Dolphin and on the desktop, and it also adds **Open With → DragShift** to file right-click menus. It works with or without a compositor: when compositing is off (common on XFCE), the menu and windows are cut to their exact shape, so you won't see black boxes. Builds target Debian 12 or newer (Ubuntu 23.04+).
-
-> **Wayland:** Wayland doesn't let apps read the global Shift and mouse state, so the Shift + drag trigger only works in X11 sessions (XFCE is X11). On GNOME/KDE Wayland, use right-click → **Open With → DragShift**, or pick *"Ubuntu on Xorg"* / *"Plasma (X11)"* at the login screen.
-
-> **First launch on Windows:** SmartScreen may warn because the app isn't code-signed yet. Click **More info → Run anyway**.
->
-> **First launch on Mac, if you used the .dmg instead of the Terminal line:** macOS says *"Apple could not verify 'DragShift' is free of malware."* This happens with any app that hasn't paid for Apple's notarization; DragShift's code is all public in this repo. To open it:
-> 1. Open DragShift once and click **Done** on the warning.
-> 2. Go to  → **System Settings → Privacy & Security**, scroll down to *"DragShift was blocked…"* and click **Open Anyway**. Enter your password and confirm.
-> 3. That's it. macOS remembers the choice.
->
-> Or, in Terminal: `xattr -dr com.apple.quarantine /Applications/DragShift.app`
-> (On macOS 15 and later, the old right-click → Open shortcut no longer skips this warning.)
->
-> **Mac, optional:** allow **Screen Recording** when DragShift asks, so the glass can refract the windows behind it. Without it, the glass shows your wallpaper. Nothing is ever saved or sent.
-
-## How to use
-
-1. Start dragging a file (an image, PDF, Word or text file; desktop shortcuts to one work too) in File Explorer, Finder, your Linux file manager or on the desktop.
-2. Press **Shift**. The menu opens under your cursor.
-3. Drop the file on a slice. The result is saved **next to the original**, and the original is never changed.
-4. To switch between **Convert** and **Tools**, tap **Shift** again.
-
-Each action ends with a notification that shows what changed, for example *"2.4 MB → 610 KB · 75% smaller"* or *"2400×1600 → 1200×800"*, with **Open**, **Show in folder** and **Undo**. Undo moves the new file to the Recycle Bin (Trash on Mac and Linux).
-
-You can also right-click a file → **DragShift…**, use **Send to → DragShift**, or double-click the tray icon to pick a file.
-
-## What it does
-
-| File | Convert to | Tools |
+| Файлы | Конвертация | Инструменты |
 |---|---|---|
-| Images (JPG, PNG, WEBP, HEIC, AVIF, TIFF, BMP, GIF, ICO) | Any of those, or PDF. Several images become one combined PDF | **Compress** (by quality or to a target size such as "under 500 KB", with a before/after preview, several files at once) · **Resize** · **Crop** (ratios, live pixel size, rotate) · **Edit** (Auto, light/colour, rotate, flip, B&W, hold to compare) · **Annotate** (arrows, boxes, numbered steps, text, marker) · **Redact** · **Add BG** · **Metadata** (camera, date, GPS location with a map link; remove location only or remove everything) |
-| PDF | JPG or PNG (one per page), DOCX, TXT | Compress · Split · Rotate · Merge (drop several) · **Protect** (AES-256 password) · **Extract images** · Metadata |
-| Word (.docx) | PDF (uses Microsoft Word if it's installed, otherwise a built-in renderer), TXT | — |
-| Text (.txt, .md, .csv…) | PDF, DOCX | — |
+| **Аудио** mp3, m4a, aac, wav, flac, ogg, opus, aiff, wma, alac, amr, ape… | MP3, M4A, WAV, FLAC, OGG, OPUS, AIFF, WMA, ALAC | Обрезка с волной, нарастание и затухание, прослушка. Битрейт 320…64k. Скорость с сохранением тона |
+| **Видео** mp4, mkv, mov, webm, avi, wmv, flv, ts, 3gp… | MP4, MKV, WEBM, MOV, AVI, GIF, MP3, M4A, WAV | Сжать до 10/25/50 МБ или в 2 и 4 раза (GPU: NVENC, Quick Sync, AMF), обрезка, кадрирование, поворот без перекодирования, скорость, убрать звук, вытащить звук, стоп-кадр в PNG |
+| **Картинки** png, jpg, webp, heic, avif, tiff, bmp, gif, ico | PNG, JPG, WEBP, HEIC, TIFF, AVIF, BMP, PDF, ICO, GIF | Сжатие, размер, кадрирование, правка света и цвета, пометки, скрытие личного, фон, метаданные и GPS |
+| **PDF** | JPG, PNG, DOCX, TXT | Сжатие, разделение, поворот, объединение, пароль, достать картинки, метаданные |
+| **DOCX, TXT, MD, CSV…** | PDF, TXT, DOCX | |
 
-**Settings** (tray menu): trigger key (Shift, Ctrl or Alt), where results go (next to the original or a `DragShift` subfolder), JPG/WebP quality, PDF → image resolution, and start at login.
+Когда это возможно, DragShift вообще не перекодирует: смена контейнера, поворот MP4/MOV и быстрая обрезка копируют потоки как есть и делаются за доли секунды. Обложки альбомов и теги сохраняются. Битрейт выше исходного DragShift делать откажется, потому что файл только раздуется. А если ролик и так меньше 10 МБ, он просто скажет об этом и ничего не создаст.
 
-## The look
+Язык интерфейса берётся из Windows (русский или английский), поменять можно в Настройках.
 
-The menu, notifications and windows use real **liquid-glass** rendering. DragShift captures the screen behind each surface and refracts it through the shape. A curved edge bends light, R, G and B bend by slightly different amounts (which gives the rainbow fringe), a highlight runs along the rim facing the light, and the tint adapts to what's behind it so text stays readable. The menu renders on a background thread while it pops in, so it still opens instantly.
+## Почему он не тормозит
 
-## Tested on real desktops
+DragShift 2 переписан: то, что работает всегда (хуки клавиатуры и мыши, меню, уведомления, ffmpeg), это маленькая нативная программа на Rust.
 
-Every push runs these jobs on GitHub's Windows, Mac and Linux machines:
+- **В простое около 1 МБ рабочей памяти** (2…4 МБ private) и **0% процессора**: никаких таймеров и опросов, только системные хуки.
+- Окна редактора (PySide6) запускаются, только когда вы их открываете, и **сами выгружаются через минуту** простоя.
+- ffmpeg работает с пониженным приоритетом, так что даже сжатие 4K не мешает играм и работе.
+- Пример: ролик 1080p60 на 40 секунд, 172 МБ → 9.2 МБ за 3.8 секунды на GTX 1060.
 
-- **Build:** unit tests, the portable exe and installer builds, a self-test of each build, and a silent install → run → uninstall check.
-- **End-to-end:** a script moves the real mouse to drag files from File Explorer *and* the Desktop, presses Shift, drops on every conversion and tool, drives each tool window, and checks every output file (format, dimensions, page counts, encryption, metadata removed). The results table and a screen recording are saved to the `e2e-output` branch.
-- **Mac end-to-end:** real Finder drags with Shift (Quartz mouse and keyboard events) through conversions, PDF tools, merging and the tool windows. Every output is checked, and the run is recorded to the `e2e-mac-output` branch.
-- **Mac builds:** `DragShift.app` and the .dmg for Apple Silicon and Intel, each self-tested inside the app bundle.
-- **Debian/XFCE:** builds the .deb on Debian 12, installs it, and runs the same kind of end-to-end test in Thunar under XFCE's window manager with the compositor **off**. Real XTest drags with Shift go through conversions, PDF tools, merging, the tool windows and Open With. The results and a recording are saved to the `e2e-linux-output` branch.
-- **Demo video:** pushing to the `demo` branch records a showcase video.
+## Безопасность
 
-## Support
+- Оригиналы никогда не меняются, результат всегда пишется новым файлом, во время работы во временный `.part`.
+- В комплекте ffmpeg 8.0.1 «essentials» от [gyan.dev](https://www.gyan.dev/ffmpeg/builds/). Сборка скачивает строго этот архив и проверяет SHA-256 архива и `ffmpeg.exe` до использования ([VirusTotal: 0/69](https://www.virustotal.com/gui/file/5af82a0d4fe2b9eae211b967332ea97edfc51c6b328ca35b827e73eac560dc0d)).
+- Никакой сети, телеметрии и рекламы. Весь код открыт.
 
-DragShift is free. If it saves you time, you can leave a tip on Cash App: [**$AtikaKadesha**](https://cash.app/$AtikaKadesha). Thank you!
+## Сборка из исходников
 
-<img src="docs/tip-cashapp.png" alt="Cash App QR code for $AtikaKadesha" width="220">
-
-## License
-
-[MIT](LICENSE): free to use, modify and share.
-
-## Run from source
+Нужны Rust (stable), Python 3.10+ и Inno Setup 6.
 
 ```bash
-pip install -r requirements.txt
-python -m dragshift
+python -m venv .venv
+.venv\Scripts\pip install -r requirements.txt pyinstaller
+powershell -ExecutionPolicy Bypass -File packaging\build.ps1 -Python .venv\Scripts\python.exe
 ```
 
-On Linux, PySide6 also needs the Qt XCB libraries: `sudo apt install libxcb-cursor0 libxkbcommon-x11-0`.
+Результат в `dist\`. Для разработки хватит `cargo build --release` в `native\`: собранный `DragShift.exe` сам найдёт `.venv` и запустит окна из исходников. Проверки: `DragShift.exe --selftest` (33 сценария аудио и видео) и `pytest`.
 
-Tests: `python -m pytest -q`. Logs are written to `%LOCALAPPDATA%\DragShift\log.txt` on Windows, `~/Library/Logs/DragShift/log.txt` on Mac and `~/.local/share/DragShift/log.txt` on Linux.
+Устройство: `native/` демон на Rust (меню, хуки, трей, уведомления, ffmpeg, задачи), `dragshift/` окна редактора и работа с картинками и PDF. Они общаются JSON-строками через stdin/stdout.
 
-Windows builds will be code-signed by the SignPath Foundation, which provides free code signing for open-source projects.
+## Благодарности
+
+Оригинальный DragShift сделал [llamaboi55](https://github.com/llamaboi55/DragShift): стеклянное меню, редакторы картинок и PDF. Этот форк добавил аудио и видео, нативный демон, русский язык и новую сборку. Версии для Mac и Linux живут в оригинальном репозитории, код Python-приложения 1.x здесь сохранён (`dragshift/app.py`), но в этом форке они не собираются и не проверяются.
+
+Лицензия MIT. ffmpeg распространяется под GPL v3 отдельной программой, его лицензия лежит в `ffmpeg\`.
+
+---
+
+<a name="english"></a>
+## English
+
+**Start dragging any file, press Shift, drop it on a slice of the glass menu.** Convert and edit images, PDFs, documents, **audio and video** right from File Explorer.
+
+**Download** from the [latest release](../../releases/latest): `DragShift-2.0.0-Setup.exe` (per-user, no admin, adds a right-click **DragShift…** entry and Send To) or `DragShift-2.0.0-Portable.zip`. Windows 10/11 x64, ffmpeg included.
+
+**Try it:** install, drag an mp3 or a video, press Shift while dragging, drop it on MP3, OPUS or **25 MB**. Press Shift again to switch rings (Convert, Tools, Compress). **Tools → Trim** opens a waveform editor with fades and preview playback.
+
+**What's new in 2.0**
+- Audio: MP3, M4A, WAV, FLAC, OGG, OPUS, AIFF, WMA, ALAC; bitrate presets; trim with waveform, fades and listening; speed with pitch kept.
+- Video: MP4, MKV, WEBM, MOV, AVI, GIF; compress to 10/25/50 MB or ½ / ¼ with GPU encoders (NVENC, Quick Sync, AMF) and a CPU fallback; trim (exact or keyframe-fast), crop, lossless rotate, speed, mute, extract soundtrack, frame snapshot.
+- A native Rust daemon: about 1 MB working set and 0% CPU while idle. The PySide6 editor windows start only when needed and exit after a minute of idle.
+- Russian and English UI, following Windows or set in Settings.
+- Streams are copied instead of re-encoded whenever possible; cover art and tags are kept; originals are never modified. DragShift won't raise a bitrate or "compress" a file that is already under the target size, it just tells you so.
+
+**Build:** Rust stable, Python 3.10+, Inno Setup 6, then `packaging\build.ps1` (see above). `DragShift.exe --selftest` runs 33 audio/video scenarios.
+
+Based on [llamaboi55/DragShift](https://github.com/llamaboi55/DragShift). MIT license; the bundled ffmpeg (GPL v3) is a separate program with its license in `ffmpeg\`.

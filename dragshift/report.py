@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from .i18n import tr
 from .util import category, file_size, human_size
 
 
@@ -49,10 +50,10 @@ def size_change(before: int, after: int) -> tuple[str, str]:
         return text, ""
     pct = (1 - after / before) * 100
     if pct >= 1:
-        return text, f"{pct:.0f}% smaller"
+        return text, tr("{}% smaller", f"{pct:.0f}")
     if pct <= -1:
-        return text, f"{-pct:.0f}% larger"
-    return text, "same size"
+        return text, tr("{}% larger", f"{-pct:.0f}")
+    return text, tr("same size")
 
 
 def _dim_str(d) -> str:
@@ -63,7 +64,7 @@ def summarize(action: str, srcs: list, outs: list, extra: str = "") -> Result:
     srcs = [Path(s) for s in srcs]
     outs = [Path(o) for o in outs if o]
     if not outs:
-        return Result(action, extra or "Nothing was written", [], srcs)
+        return Result(action, extra or tr("Nothing was written"), [], srcs)
     src = srcs[0] if srcs else outs[0]
     before = sum(file_size(s) for s in srcs if s.is_file())
     after = sum(file_size(o) for o in outs if o.is_file())
@@ -74,12 +75,12 @@ def summarize(action: str, srcs: list, outs: list, extra: str = "") -> Result:
     if kind == "convert":
         fmt = name
         if len(srcs) > 1 and len(outs) == 1:
-            title = f"{len(srcs)} files → 1 {fmt}"
+            title = tr("{} files → 1 {}", len(srcs), fmt)
         elif len(outs) > 1 and len(srcs) == 1:
             n = pages(src)
-            title = f"{n or len(outs)} pages → {len(outs)} {fmt}s"
+            title = tr("{} pages → {} {}s", n or len(outs), len(outs), fmt)
         elif len(outs) > 1:
-            title = f"{len(outs)} files → {fmt}"
+            title = tr("{} files → {}", len(outs), fmt)
         else:
             title = f"{src.suffix.lstrip('.').upper()} → {fmt}"
         bits = [o0.name if len(outs) == 1 else f"{o0.parent.name}/{o0.name} …"]
@@ -89,58 +90,58 @@ def summarize(action: str, srcs: list, outs: list, extra: str = "") -> Result:
         if o0.suffix.lower() == ".pdf":
             n = pages(o0)
             if n:
-                bits.append(f"{n} page{'s' if n != 1 else ''}")
+                bits.append(tr("{} pages", n) if n != 1 else tr("1 page"))
         bits.append(human_size(after))
         return Result(title, " · ".join(bits), outs, srcs)
 
     if name == "Compress":
         sizes, verdict = size_change(before, after)
-        title = f"Compressed {len(srcs)} files" if len(srcs) > 1 else "Compressed"
-        if verdict.endswith("larger") or verdict == "same size":
-            verdict = "already well compressed"
+        title = tr("Compressed {} files", len(srcs)) if len(srcs) > 1 else tr("Compressed")
+        if after >= before:
+            verdict = tr("already well compressed")
         return Result(title, sizes + (f" · {extra}" if extra else ""), outs, srcs, good=verdict)
 
     if name in ("Crop", "Resize", "Edit"):
         d0, d1 = dims(src), dims(o0)
-        verb = {"Crop": "Cropped", "Resize": "Resized", "Edit": "Edited"}[name]
+        verb = tr({"Crop": "Cropped", "Resize": "Resized", "Edit": "Edited"}[name])
         if len(outs) > 1:
-            return Result(f"{verb} {len(outs)} images", f"{human_size(before)} → {human_size(after)}", outs, srcs)
+            return Result(tr("{}: {} images", verb, len(outs)), f"{human_size(before)} → {human_size(after)}", outs, srcs)
         detail = f"{_dim_str(d0)} → {_dim_str(d1)}" if d0 and d1 and d0 != d1 else _dim_str(d1)
         if extra:
             detail += f" · {extra}"
         return Result(verb, f"{detail} · {o0.name}", outs, srcs)
 
     if name == "Add BG":
-        return Result("Background added", f"{_dim_str(dims(o0))} PNG · {human_size(after)} · {o0.name}", outs, srcs)
+        return Result(tr("Background added"), f"{_dim_str(dims(o0))} PNG · {human_size(after)} · {o0.name}", outs, srcs)
 
     if name == "Annotate":
-        return Result("Annotated", f"{extra} · {o0.name}" if extra else o0.name, outs, srcs)
+        return Result(tr("Annotated"), f"{extra} · {o0.name}" if extra else o0.name, outs, srcs)
 
     if name == "Redact":
-        return Result("Redacted", f"{extra} · {o0.name}" if extra else o0.name, outs, srcs,
-                      good="burned into pixels")
+        return Result(tr("Redacted"), f"{extra} · {o0.name}" if extra else o0.name, outs, srcs,
+                      good=tr("burned into pixels"))
 
     if name == "Metadata":
-        return Result("Metadata removed", f"{extra} · {o0.name}" if extra else o0.name, outs, srcs,
-                      good="private copy")
+        return Result(tr("Metadata removed"), f"{extra} · {o0.name}" if extra else o0.name, outs, srcs,
+                      good=tr("private copy"))
 
     if name == "Split":
-        return Result(f"Split into {len(outs)} PDFs", f"{o0.name} …", outs, srcs)
+        return Result(tr("Split into {} PDFs", len(outs)), f"{o0.name} …", outs, srcs)
 
     if name == "Merge":
         n = pages(o0)
-        return Result(f"Merged {len(srcs)} PDFs", f"{n} pages · {human_size(after)} · {o0.name}", outs, srcs)
+        return Result(tr("Merged {} PDFs", len(srcs)), tr("{} pages", n) + f" · {human_size(after)} · {o0.name}", outs, srcs)
 
     if name == "Rotate":
         n = pages(o0)
-        return Result("Rotated 90°", f"{n} page{'s' if n != 1 else ''} · {o0.name}", outs, srcs)
+        return Result(tr("Rotated 90°"), (tr("{} pages", n) if n != 1 else tr("1 page")) + f" · {o0.name}", outs, srcs)
 
     if name == "Protect":
-        return Result("Password protected", f"AES-256 · {o0.name}", outs, srcs, good="encrypted")
+        return Result(tr("Password protected"), f"AES-256 · {o0.name}", outs, srcs, good=tr("encrypted"))
 
     if name == "Extract":
-        return Result(f"Extracted {len(outs)} image{'s' if len(outs) != 1 else ''}",
+        return Result(tr("Extracted 1 image") if len(outs) == 1 else tr("Extracted {} images", len(outs)),
                       f"{o0.parent.name}/ · {human_size(after)}", outs, srcs)
 
     # generic
-    return Result(name or action, f"{o0.name} · {human_size(after)}", outs, srcs)
+    return Result(tr(name or action), f"{o0.name} · {human_size(after)}", outs, srcs)
