@@ -4,7 +4,9 @@
 
 [English below](#english)
 
-![DragShift](docs/preview.png)
+![DragShift, тёмная тема](docs/preview-dark.png)
+
+![DragShift, светлая тема](docs/preview-light.png)
 
 ## Скачать
 
