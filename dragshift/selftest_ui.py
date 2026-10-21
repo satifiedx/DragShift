@@ -45,7 +45,7 @@ def media_samples(d: Path) -> list[Path]:
 
 def run() -> int:
     from PIL import Image
-    from . import convert, imaging, liquid, media_tools, tools
+    from . import convert, imaging, media_tools, tools
     from .settings import Settings, SettingsWindow, WelcomeWindow
     try:
         with tempfile.TemporaryDirectory() as tmp:
@@ -63,7 +63,6 @@ def run() -> int:
             imaging.add_background(convert.open_image(src), imaging.Background())
             imaging.compress_pdf(pdf)
             imaging.protect_pdf(pdf, "pw")
-            liquid.render(Image.new("RGB", (80, 80)), liquid.sdf_circle(80, 80, 40, 40, 30))
             n = lambda *a, **k: None
             windows = [tools.CropWindow(str(src), n), tools.AddBgWindow(str(src), n), tools.EditWindow(str(src), n),
                        tools.AnnotateWindow(str(src), n), tools.RedactWindow(str(src), n),

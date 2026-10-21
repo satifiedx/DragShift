@@ -31,7 +31,7 @@ Maintainer: DragShift <https://github.com/llamaboi55/DragShift>
 Homepage: https://github.com/llamaboi55/DragShift
 Description: Convert and edit files with a Shift+drag radial menu
  Start dragging a file in your file manager (Thunar, Nautilus, Nemo...),
- press Shift and drop it on a slice of the liquid-glass menu: convert
+ press Shift and drop it on a slice of the radial menu: convert
  images, PDFs, Word and text files, compress, resize, crop, annotate,
  redact and more. Works on X11 desktops including XFCE, with or without
  a compositor. Right-click > Open With > DragShift works everywhere.

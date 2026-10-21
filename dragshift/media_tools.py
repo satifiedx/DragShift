@@ -18,10 +18,11 @@ from pathlib import Path
 from typing import Callable
 
 from PySide6.QtCore import QObject, QPointF, QRectF, QSize, Qt, QTimer, Signal
-from PySide6.QtGui import QColor, QImage, QKeySequence, QLinearGradient, QPainter, QPainterPath, QPen, QPixmap, QShortcut
+from PySide6.QtGui import QImage, QKeySequence, QPainter, QPainterPath, QPen, QPixmap, QShortcut
 from PySide6.QtWidgets import (QCheckBox, QHBoxLayout, QLabel, QLineEdit, QPushButton, QSizePolicy,
                                QVBoxLayout, QWidget)
 
+from . import glass
 from .i18n import tr
 from .tools import CropView, dims_text, section, slider, slider_row, toggle_row
 from .util import file_size, human_size, ui_family
@@ -30,7 +31,6 @@ from .window import GlassWindow
 IS_WIN = sys.platform == "win32"
 NO_WINDOW = 0x08000000 if IS_WIN else 0
 BELOW_NORMAL = 0x00004000 if IS_WIN else 0
-ACCENT = QColor("#ff6a4d")
 
 Emit = Callable[[dict], None]
 
@@ -141,9 +141,38 @@ class _Bus(QObject):
     strip = Signal(int, object)    # index, QImage
     played = Signal(object)        # wav path or None
 
+    def __init__(self):
+        super().__init__()
+        self.alive = True              # False once its window closed: loops stop early
+
+
+_STOP = threading.Event()
+_THREADS: list[threading.Thread] = []
+
 
 def background(fn):
-    threading.Thread(target=fn, daemon=True).start()
+    _THREADS[:] = [t for t in _THREADS if t.is_alive()]
+    t = threading.Thread(target=fn, daemon=True)
+    _THREADS.append(t)
+    t.start()
+
+
+def stop_background(timeout: float = 10.0):
+    """Before Qt goes away: let preview threads finish their ffmpeg call instead of having them
+    emit into a torn-down application (that crashes the process on exit)."""
+    import time
+    _STOP.set()
+    end = time.monotonic() + timeout
+    for t in list(_THREADS):
+        t.join(max(0.0, end - time.monotonic()))
+
+
+def before_exit():
+    """Wind down cleanly: preview threads first, then the windows still queued for deletion
+    (closed windows delete themselves later; with no event loop left Qt would crash on them)."""
+    from PySide6.QtCore import QCoreApplication, QEvent
+    stop_background()
+    QCoreApplication.sendPostedEvents(None, QEvent.DeferredDelete)
 
 
 # ---------------------------------------------------------------- sound preview (no extra libraries)
@@ -288,7 +317,7 @@ class Timeline(QWidget):
         L = self.lane()
         bg = QPainterPath()
         bg.addRoundedRect(L, 10, 10)
-        p.fillPath(bg, QColor(0, 0, 0, 70))
+        p.fillPath(bg, glass.color("bg"))
         p.save()
         p.setClipPath(bg)
         wave_top = L.top()
@@ -305,16 +334,14 @@ class Timeline(QWidget):
                     src = QRectF((img.width() - sw) / 2, (img.height() - shh) / 2, sw, shh)
                     p.drawImage(cell, img, src)
                 else:
-                    p.fillRect(cell.adjusted(1, 1, -1, -1), QColor(255, 255, 255, 14))
+                    p.fillRect(cell.adjusted(1, 1, -1, -1), glass.color("sector"))
             wave_top = L.top() + sh + 4
         wave = QRectF(L.left(), wave_top, L.width(), L.bottom() - wave_top)
         mid = wave.center().y()
         if self.peaks is not None and len(self.peaks):
             n = len(self.peaks)
             cols = max(1, int(wave.width() / 2))
-            grad = QLinearGradient(wave.topLeft(), wave.topRight())
-            for i, c in enumerate(("#6bd5ff", "#8a7bff", "#ff6b9d", "#ffb36b")):
-                grad.setColorAt(i / 3, QColor(c))
+            wave_col = glass.color("accent")
             path = QPainterPath()
             for c in range(cols):
                 v = float(self.peaks[min(n - 1, int(c / cols * n))])
@@ -323,39 +350,41 @@ class Timeline(QWidget):
                 h = max(1.0, v * g * (wave.height() / 2 - 2))
                 x = wave.left() + c * wave.width() / cols
                 path.addRect(QRectF(x, mid - h, max(1.0, wave.width() / cols - 0.6), 2 * h))
-            p.fillPath(path, grad)
+            p.fillPath(path, wave_col)
         else:
-            p.setPen(QPen(QColor(255, 255, 255, 50), 1, Qt.DashLine))
+            p.setPen(QPen(glass.color("line"), 1, Qt.DashLine))
             p.drawLine(QPointF(wave.left(), mid), QPointF(wave.right(), mid))
         # outside the selection
         xs, xe = self.x_of(self.start), self.x_of(self.end)
-        p.fillRect(QRectF(L.left(), L.top(), xs - L.left(), L.height()), QColor(10, 6, 20, 165))
-        p.fillRect(QRectF(xe, L.top(), L.right() - xe, L.height()), QColor(10, 6, 20, 165))
+        outside = glass.color("bg", 190)
+        p.fillRect(QRectF(L.left(), L.top(), xs - L.left(), L.height()), outside)
+        p.fillRect(QRectF(xe, L.top(), L.right() - xe, L.height()), outside)
         p.restore()
         # selection frame + handles
-        p.setPen(QPen(ACCENT, 2))
+        accent = glass.color("accent")
+        p.setPen(QPen(accent, 2))
         p.setBrush(Qt.NoBrush)
         p.drawRoundedRect(QRectF(xs, L.top() + 1, xe - xs, L.height() - 2), 6, 6)
         for x in (xs, xe):
             h = QRectF(x - 4, L.center().y() - 16, 8, 32)
             p.setPen(Qt.NoPen)
-            p.setBrush(ACCENT)
+            p.setBrush(accent)
             p.drawRoundedRect(h, 4, 4)
-            p.setBrush(QColor(255, 255, 255, 200))
+            p.setBrush(glass.color("on_accent"))
             p.drawRect(QRectF(x - 0.75, L.center().y() - 7, 1.5, 14))
         # playhead
         xp = self.x_of(self.playhead)
-        p.setPen(QPen(QColor(255, 255, 255, 235), 1.6))
+        p.setPen(QPen(glass.color("text"), 1.6))
         p.drawLine(QPointF(xp, L.top() - 4), QPointF(xp, L.bottom() + 4))
         p.setPen(Qt.NoPen)
-        p.setBrush(QColor(255, 255, 255))
+        p.setBrush(glass.color("text"))
         p.drawEllipse(QPointF(xp, L.top() - 4), 3.5, 3.5)
         # time ruler
         f = p.font()
         f.setFamily(ui_family(False))
         f.setPixelSize(10)
         p.setFont(f)
-        p.setPen(QColor(255, 255, 255, 140))
+        p.setPen(glass.color("dim"))
         steps = 6
         for i in range(steps + 1):
             t = self.duration * i / steps
@@ -382,7 +411,7 @@ class FramePreview(QLabel):
         self.setAlignment(Qt.AlignCenter)
         self.setMinimumSize(360, 220)
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        self.setStyleSheet("border-radius: 12px; background: rgba(0,0,0,0.30);")
+        self.setStyleSheet(f"border-radius: 12px; background: {glass.pal()['bg']};")
         self.img: QImage | None = None
 
     def set_image(self, img: QImage):
@@ -452,6 +481,12 @@ class MediaWindow(GlassWindow):
 
 
 # ---------------------------------------------------------------- TRIM
+
+    def closeEvent(self, e):
+        self.bus.alive = False
+        super().closeEvent(e)
+
+
 class TrimWindow(MediaWindow):
     def __init__(self, path, emit: Emit):
         info = probe(path)
@@ -567,6 +602,8 @@ class TrimWindow(MediaWindow):
 
             def strip():
                 for i in range(n):
+                    if _STOP.is_set() or not bus.alive:
+                        return
                     t = dur * (i + 0.5) / n
                     try:
                         bus.strip.emit(i, frame_at(path, t, 240, 140))
@@ -595,7 +632,7 @@ class TrimWindow(MediaWindow):
             while True:
                 want = self._frame_want
                 self._frame_want = None
-                if want is None:
+                if want is None or _STOP.is_set() or not bus.alive:
                     break
                 try:
                     bus.image.emit(0, frame_at(path, want))

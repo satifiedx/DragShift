@@ -134,7 +134,7 @@ RU: dict[str, str] = {
     "DragShift can't tell how long this file is.": "DragShift не может понять длительность этого файла.",
     "This file has no video, only sound.": "В этом файле нет видео, только звук.",
     # ---- settings / welcome
-    "Language": "Язык", "Same as Windows": "Как в Windows", "Open the menu with": "Открывать меню клавишей",
+    "Language": "Язык", "Same as Windows": "Как в Windows", "Theme": "Тема", "Dark": "Тёмная", "Light": "Светлая", "Open the menu with": "Открывать меню клавишей",
     "…pressed while you’re dragging a file": "…нажатой, пока тащите файл",
     "Save results": "Куда сохранять", "Next to the original": "Рядом с оригиналом",
     "In a “DragShift” subfolder": "В подпапку «DragShift»", "JPG / WebP quality": "Качество JPG / WebP",
@@ -151,7 +151,7 @@ RU: dict[str, str] = {
         "Новый язык применится к меню и окнам, которые откроются дальше.",
     "Welcome to DragShift": "Добро пожаловать в DragShift", "Got it": "Понятно",
     "Start dragging any file": "Начните тащить любой файл", "Press {}": "Нажмите {}",
-    "the glass menu opens right under your cursor": "стеклянное меню откроется прямо под курсором",
+    "the menu opens right under your cursor": "меню откроется прямо под курсором",
     "Drop it on a slice": "Бросьте на нужный сектор",
     "the result is saved next to the original": "результат сохранится рядом с оригиналом",
     "Tap {} again": "Нажмите {} ещё раз",

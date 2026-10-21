@@ -1,11 +1,11 @@
 """Tests for v1.1 features: target-size compress, resize, protect, extract, location strip,
-result summaries, output folder setting, liquid renderer."""
+result summaries, output folder setting."""
 from pathlib import Path
 
 import pytest
 from PIL import Image, ImageDraw
 
-from dragshift import convert, imaging, liquid, report
+from dragshift import convert, imaging, report
 from dragshift.util import CONFIG, UserError
 
 
@@ -114,15 +114,3 @@ def test_auto_enhance_and_summary(tmp_path):
     assert 0.8 < a.brightness < 1.3
     r = report.summarize("convert:PNG", [p], convert.convert(p, "image", "PNG"))
     assert r.title == "JPG → PNG" and "300×200" in r.detail and r.thumb
-
-
-def test_liquid_render_shapes():
-    bg = Image.new("RGB", (200, 200), (255, 120, 80))
-    for sdf in (liquid.sdf_rounded_rect(200, 200, 10, 10, 190, 190, 20),
-                liquid.sdf_ring_sector(200, 200, 100, 100, 30, 90, 45, 135, 6)):
-        img, light = liquid.render(bg, sdf)
-        a = img.getchannel("A")
-        assert a.getpixel((100, 100 if sdf is not None else 0)) >= 0
-        assert img.size == (200, 200)
-    img, _ = liquid.render(bg, liquid.sdf_circle(200, 200, 100, 100, 50))
-    assert img.getpixel((100, 100))[3] == 255 and img.getpixel((2, 2))[3] == 0

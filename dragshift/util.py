@@ -129,6 +129,14 @@ _TEXT = ["Segoe UI Variable Text", "Segoe UI", "SF Pro Text", "SF Pro", "Helveti
          "Inter", "Cantarell", "Noto Sans", "Ubuntu", "DejaVu Sans"]
 
 
+def frame_ms(screen=None) -> int:
+    """One refresh of `screen` (or the primary one) in ms: animations tick at the monitor's Hz."""
+    from PySide6.QtGui import QGuiApplication
+    scr = screen or QGuiApplication.primaryScreen()
+    hz = scr.refreshRate() if scr is not None else 60.0
+    return max(1, int(1000 / min(max(hz or 60.0, 30.0), 500.0)))
+
+
 def ui_family(display: bool = True) -> str:
     """First UI font that is really installed. Never ask Qt for a missing family: on macOS 26
     an unknown family can resolve to a font that draws nothing (labels vanish)."""

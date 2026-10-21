@@ -18,7 +18,7 @@ from PySide6.QtWidgets import (QButtonGroup, QCheckBox, QColorDialog, QComboBox,
                                QPushButton, QSlider, QSpinBox, QTableWidget, QTableWidgetItem,
                                QVBoxLayout, QWidget)
 
-from . import imaging
+from . import glass, imaging
 from .util import ui_family
 from .i18n import tr
 from .convert import open_image, open_preview
@@ -255,7 +255,7 @@ class CropView(ImageView):
             p.drawLine(QPointF(x, r.top()), QPointF(x, r.bottom()))
             p.drawLine(QPointF(r.left(), y), QPointF(r.right(), y))
         p.setPen(Qt.NoPen)
-        p.setBrush(QColor("#ff6a4d"))
+        p.setBrush(glass.color("accent"))
         for pt in (r.topLeft(), r.topRight(), r.bottomLeft(), r.bottomRight()):
             p.drawEllipse(pt, 5.5, 5.5)
         # live output size badge
@@ -268,9 +268,9 @@ class CropView(ImageView):
         badge = QRectF(r.center().x() - w / 2, r.bottom() - 30, w, 22)
         if badge.top() < r.top() + 4:
             badge.moveTop(r.bottom() + 6)
-        p.setBrush(QColor(20, 16, 32, 190))
-        p.drawRoundedRect(badge, 11, 11)
-        p.setPen(QColor(255, 255, 255))
+        p.setBrush(glass.color("panel", 230))
+        p.drawRoundedRect(badge, 8, 8)
+        p.setPen(glass.color("text"))
         p.drawText(badge, Qt.AlignCenter, txt)
 
 
@@ -816,7 +816,7 @@ class RedactView(ImageView):
 
     def paint_overlay(self, p, t):
         if self.cur is not None:
-            p.setPen(QPen(QColor("#ff5f6d"), 1.5, Qt.DashLine))
+            p.setPen(QPen(glass.color("accent"), 1.5, Qt.DashLine))
             p.setBrush(QColor(0, 0, 0, 90))
             p.drawRect(self.rect_to_widget(self.cur))
 
@@ -1156,7 +1156,7 @@ class CompressWindow(ToolWindow):
             col = QVBoxLayout()
             lab.setFixedSize(270, 170)
             lab.setAlignment(Qt.AlignCenter)
-            lab.setStyleSheet("border-radius: 12px; background: rgba(0,0,0,0.25);")
+            lab.setStyleSheet(f"border-radius: 12px; background: {glass.pal()['bg']};")
             c = QLabel(tr(cap))
             c.setObjectName("dim")
             col.addWidget(lab)

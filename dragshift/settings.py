@@ -13,7 +13,7 @@ from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (QCheckBox, QComboBox, QGridLayout, QHBoxLayout, QLabel,
                                QPushButton, QSlider, QVBoxLayout)
 
-from . import __version__
+from . import __version__, glass
 from .i18n import tr
 from .util import CONFIG
 from .window import GlassWindow
@@ -31,6 +31,7 @@ DEFAULTS = {
     "trigger": "shift",
     "welcomed": False,
     "lang": "auto",
+    "theme": "auto",
     "gpu": True,
     "ui_idle_seconds": 60,
     "enabled": True,
@@ -139,6 +140,7 @@ TRIGGERS = ([("shift", "Shift ⇧"), ("ctrl", "Control ⌃"), ("alt", "Option �
 OUTPUTS = [("next", "Next to the original"), ("folder", "In a “DragShift” subfolder")]
 DPIS = [(150, "150 dpi · small"), (200, "200 dpi · balanced"), (300, "300 dpi · print")]
 LANGS = [("auto", "Same as Windows"), ("en", "English"), ("ru", "Русский")]
+THEMES = [("auto", "Same as Windows"), ("dark", "Dark"), ("light", "Light")]
 
 
 class SettingsWindow(GlassWindow):
@@ -175,6 +177,12 @@ class SettingsWindow(GlassWindow):
         self.lang = combo(LANGS, self.s.get("lang"))
         self.lang.currentIndexChanged.connect(lambda _: self._save("lang", self.lang.currentData()))
         grid.addWidget(self.lang, r, 1)
+        r += 1
+
+        grid.addWidget(label("Theme"), r, 0)
+        self.theme = combo(THEMES, self.s.get("theme"))
+        self.theme.currentIndexChanged.connect(lambda _: self._save("theme", self.theme.currentData()))
+        grid.addWidget(self.theme, r, 1)
         r += 1
 
         grid.addWidget(label("Open the menu with"), r, 0)
@@ -256,6 +264,8 @@ class SettingsWindow(GlassWindow):
             from . import i18n
             i18n.reload()
             self.note.setText(tr("The new language applies to menus and windows opened from now on."))
+        if key == "theme":
+            glass.refresh()
         self.changed.emit()
 
 
@@ -266,7 +276,7 @@ class WelcomeWindow(GlassWindow):
         steps = [
             ("1", tr("Start dragging any file"), tr("in Finder or on the desktop") if IS_MAC else
              tr("in your file manager (Thunar, Nautilus…)") if IS_LINUX else tr("in File Explorer or on the desktop")),
-            ("2", tr("Press {}", trigger_label), tr("the glass menu opens right under your cursor")),
+            ("2", tr("Press {}", trigger_label), tr("the menu opens right under your cursor")),
             ("3", tr("Drop it on a slice"), tr("the result is saved next to the original")),
             ("⇄", tr("Tap {} again", trigger_label), tr("to switch between Convert and Tools")),
         ]
@@ -275,7 +285,7 @@ class WelcomeWindow(GlassWindow):
             badge = QLabel(n)
             badge.setAlignment(Qt.AlignCenter)
             badge.setFixedSize(34, 34)
-            badge.setStyleSheet("background: qlineargradient(x1:0,y1:0,x2:1,y2:1, stop:0 #5ac8ff, stop:1 #2f7bff);"
+            badge.setStyleSheet(f"background: {glass.pal()['accent']}; color: {glass.pal()['on_accent']};"
                                 "border-radius: 17px; font-weight: 700; font-size: 12pt;")
             row.addWidget(badge)
             col = QVBoxLayout()
@@ -290,17 +300,6 @@ class WelcomeWindow(GlassWindow):
             row.addLayout(col, 1)
             self.body.addLayout(row)
         self.body.addStretch(1)
-        if IS_MAC:
-            from . import platform_mac
-            if not platform_mac.has_screen_recording():
-                note = QLabel("Optional: allow Screen Recording so the glass can refract the windows "
-                              "behind it (otherwise it shows your wallpaper). DragShift never saves or sends it.")
-                note.setObjectName("dim")
-                note.setWordWrap(True)
-                self.body.addWidget(note)
-                b = QPushButton("Allow Screen Recording…")
-                b.clicked.connect(platform_mac.request_screen_recording)
-                self.body.addWidget(b, 0, Qt.AlignLeft)
         if IS_LINUX:
             from . import platform_linux
             if platform_linux.is_wayland():

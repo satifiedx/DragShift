@@ -2,10 +2,6 @@
 
 * Trigger: NSEvent.pressedMouseButtons / modifierFlags give the *global* mouse and
   modifier state, with no Accessibility or Input Monitoring permission needed.
-* Capture: CGWindowListCreateImage can capture "everything below window N", which keeps
-  Finder's drag picture and our own windows out of the glass (live refresh like Windows'
-  capture exclusion). Seeing other apps' windows needs the Screen Recording permission;
-  without it macOS returns just the wallpaper, which still makes a pleasant glass.
 * Start at login: a LaunchAgent plist.
 """
 from __future__ import annotations

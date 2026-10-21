@@ -1,4 +1,4 @@
-"""DragShift: Shift+drag any file to convert or edit it from a radial liquid-glass menu."""
+"""DragShift: Shift+drag any file to convert or edit it from a radial menu."""
 from __future__ import annotations
 
 import json
@@ -10,7 +10,7 @@ from pathlib import Path
 
 from PySide6.QtCore import QDir, QObject, QPointF, QRunnable, Qt, QThreadPool, QTimer, QUrl, Signal
 from PySide6.QtGui import (QAction, QColor, QCursor, QDesktopServices, QGuiApplication, QIcon, QPainter,
-                           QPixmap)
+                           QPen, QPixmap)
 from PySide6.QtNetwork import QLocalServer, QLocalSocket
 from PySide6.QtWidgets import QApplication, QFileDialog, QMenu, QSystemTrayIcon, QWidget
 
@@ -120,7 +120,7 @@ def make_icon() -> QIcon:
     pm.fill(Qt.transparent)
     p = QPainter(pm)
     p.setRenderHint(QPainter.Antialiasing)
-    p.setPen(glass.iridescent_pen(QPointF(32, 32), 7, 255))
+    p.setPen(QPen(glass.color("accent"), 7))
     p.drawEllipse(QPointF(32, 32), 24, 24)
     p.end()
     return QIcon(pm)
@@ -160,7 +160,7 @@ class DragShiftApp(QObject):
         self.tray = QSystemTrayIcon(make_tray_icon(), self)
         self.tray.setToolTip(f"{APP_NAME} — press {self.trigger_label()} while dragging a file")
         m = QMenu()
-        m.setStyleSheet(glass.QSS)
+        m.setStyleSheet(glass.qss())
         self.act_enabled = QAction("Enabled", m, checkable=True, checked=True)
         self.act_enabled.toggled.connect(lambda on: setattr(self.watcher, "enabled", on))
         m.addAction(self.act_enabled)
@@ -457,7 +457,10 @@ def main(argv: list[str] | None = None) -> int:
     qapp.setWindowIcon(make_icon())
 
     if "--selftest" in argv:
-        return selftest()
+        code = selftest()
+        from .media_tools import before_exit
+        before_exit()
+        return code
     files = [os.path.abspath(a) for a in argv[1:] if not a.startswith("-") and os.path.exists(a)]
     # already running? hand over and exit (instant: no second UI start-up)
     if send_to_running({"files": files} if files else {"show": "--quiet" not in argv}):
@@ -473,7 +476,10 @@ def main(argv: list[str] | None = None) -> int:
     elif "--quiet" not in argv:
         QTimer.singleShot(400, lambda: app.toasts.info(
             "DragShift is running", f"Drag any file, then press {app.trigger_label()}."))
-    return qapp.exec()
+    code = qapp.exec()
+    from .media_tools import before_exit
+    before_exit()
+    return code
 
 
 def check_text_renders():
@@ -513,8 +519,6 @@ def selftest() -> int:
             imaging.add_background(convert.open_image(src), imaging.Background())
             imaging.compress_pdf(pdf)
             imaging.protect_pdf(pdf, "pw")
-            from . import liquid
-            liquid.render(Image.new("RGB", (80, 80)), liquid.sdf_circle(80, 80, 40, 40, 30))
             menu = RadialMenu(lambda p: {"Convert": [Item("PNG")]}, lambda p: "1 KB")
             menu._load([str(src)])
             n = lambda *a, **k: None

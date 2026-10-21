@@ -1,8 +1,9 @@
 """The radial drop menu that pops up under the cursor while you Shift+drag a file.
 
-Rendering: the moment the menu opens we snapshot the screen behind it; a worker thread then
-refracts that snapshot through the menu's shape (see liquid.py). Until that's ready (~60 ms)
-a cheap frosted version is drawn, so the menu still appears instantly."""
+Flat matte petals around a hub (same look as the native menu in native/src/menu.rs). The
+shape and its soft shadow are drawn once per petal count and cached; every frame only draws
+that, the hovered petal and the labels. Animations are time-based and tick at the monitor's
+refresh rate, so they look the same at 60 Hz and 240 Hz."""
 from __future__ import annotations
 
 import math
@@ -11,14 +12,13 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
 
-from PySide6.QtCore import (QEasingCurve, QObject, QPoint, QPointF, QRectF, QRunnable, Qt,
-                            QThreadPool, QTimer, QVariantAnimation, Signal)
-from PySide6.QtGui import (QColor, QCursor, QFont, QGuiApplication, QImage, QPainter,
-                           QPainterPath, QPen, QPixmap, QRadialGradient)
+from PySide6.QtCore import QElapsedTimer, QPoint, QPointF, QRectF, Qt, QTimer, Signal
+from PySide6.QtGui import (QColor, QCursor, QFont, QGuiApplication, QImage, QPainter, QPainterPath,
+                           QPainterPathStroker, QPen)
 from PySide6.QtWidgets import QWidget
 
 from . import glass
-from .util import resolve_shortcuts, ui_family
+from .util import frame_ms, resolve_shortcuts, ui_family
 
 
 @dataclass
@@ -36,6 +36,8 @@ R_IN = 60           # inner radius of petals
 R_HUB = 50          # hub radius
 GAP_DEG = 3.2
 CORNER = 10
+POP_SECS = 0.19
+SWAP_SECS = 0.22
 
 
 def sector_path(c: QPointF, r0: float, r1: float, a0: float, a1: float) -> QPainterPath:
@@ -56,36 +58,92 @@ def angles(n: int, i: int) -> tuple[float, float]:
     return start + GAP_DEG / 2, start + span - GAP_DEG / 2
 
 
-# ---------------------------------------------------------------- background render
-class _RenderSig(QObject):
-    done = Signal(int, int, QImage, bool)   # serial, petal count, image, is_light
+def ease_out_back(x: float) -> float:
+    c1 = 1.70158
+    return 1 + (c1 + 1) * (x - 1) ** 3 + c1 * (x - 1) ** 2
 
 
-class _RenderJob(QRunnable):
-    def __init__(self, serial: int, n: int, backdrop):
-        super().__init__()
-        self.serial, self.n, self.backdrop = serial, n, backdrop
-        self.sig = _RenderSig()
+def ease_out_cubic(x: float) -> float:
+    return 1 - (1 - x) ** 3
 
-    def run(self):
-        try:
-            from . import liquid
-            c = SIZE / 2
-            fields = [liquid.sdf_circle(SIZE, SIZE, c, c, R_HUB)]
-            for i in range(self.n):
-                a0, a1 = angles(self.n, i)
-                fields.append(liquid.sdf_ring_sector(SIZE, SIZE, c, c, R_IN, R_OUT, a0, a1, CORNER))
-            sdf = liquid.union(*fields)
-            img, light = liquid.render(self.backdrop, sdf, liquid.GlassStyle())
-            sh = liquid.shadow(sdf, spread=26, opacity=0.42 if light else 0.30, offset=(0, 8))
-            sh.alpha_composite(img)
-            try:
-                self.sig.done.emit(self.serial, self.n, glass.qimage_from_pil(sh), light)
-            except RuntimeError:
-                pass
-        except Exception:  # pragma: no cover - fall back to the painted glass
-            import traceback
-            traceback.print_exc()
+
+def approach(v: float, target: float, rate: float, dt: float) -> float:
+    """Exponential approach that looks the same at any refresh rate (`rate` per 1/60 s)."""
+    nv = v + (target - v) * (1 - (1 - rate) ** (dt * 60))
+    return target if abs(nv - target) < 0.002 else nv
+
+
+def mix(a: QColor, b: QColor, t: float) -> QColor:
+    t = min(max(t, 0.0), 1.0)
+    return QColor.fromRgbF(a.redF() + (b.redF() - a.redF()) * t, a.greenF() + (b.greenF() - a.greenF()) * t,
+                           a.blueF() + (b.blueF() - a.blueF()) * t, a.alphaF() + (b.alphaF() - a.alphaF()) * t)
+
+
+_PETALS: dict[int, list[QPainterPath]] = {}
+
+
+def rounded_sector(c: QPointF, r0: float, r1: float, a0: float, a1: float, k: float) -> QPainterPath:
+    """Annular sector with its corners rounded by `k`: inset by k, then grown back with round joins."""
+    ro, ri = r1 - k, r0 + k
+    do, di = math.degrees(math.asin(k / ro)), math.degrees(math.asin(k / ri))
+    outer = QRectF(c.x() - ro, c.y() - ro, 2 * ro, 2 * ro)
+    inner = QRectF(c.x() - ri, c.y() - ri, 2 * ri, 2 * ri)
+    core = QPainterPath()
+    core.arcMoveTo(outer, a0 + do)
+    core.arcTo(outer, a0 + do, (a1 - do) - (a0 + do))
+    core.arcTo(inner, a1 - di, -((a1 - di) - (a0 + di)))
+    core.closeSubpath()
+    st = QPainterPathStroker()
+    st.setWidth(2 * k)
+    st.setJoinStyle(Qt.RoundJoin)
+    st.setCapStyle(Qt.RoundCap)
+    return st.createStroke(core).united(core).simplified()
+
+
+def petals(n: int) -> list[QPainterPath]:
+    if n not in _PETALS:
+        c = QPointF(SIZE / 2, SIZE / 2)
+        _PETALS[n] = [rounded_sector(c, R_IN, R_OUT, *angles(n, i), CORNER / 2) for i in range(n)]
+    return _PETALS[n]
+
+
+def menu_shape(n: int) -> QImage:
+    """Hub + `n` petals with a soft shadow, in the current palette."""
+    pal = glass.color
+    c = QPointF(SIZE / 2, SIZE / 2)
+    body = QPainterPath()
+    body.addEllipse(c, R_HUB, R_HUB)
+    for path in petals(n):
+        body.addPath(path)
+    # shadow: the silhouette, blurred by scaling down and up again, nudged down
+    sh = QImage(SIZE // 4, SIZE // 4, QImage.Format_ARGB32_Premultiplied)
+    sh.fill(0)
+    p = QPainter(sh)
+    p.setRenderHint(QPainter.Antialiasing)
+    p.scale(0.25, 0.25)
+    p.fillPath(body, pal("shade", int(255 * (0.20 if glass.is_light() else 0.40))))
+    p.end()
+    for _ in range(2):
+        sh = sh.scaled(sh.width() // 2, sh.height() // 2, Qt.IgnoreAspectRatio, Qt.SmoothTransformation) \
+               .scaled(sh.width(), sh.height(), Qt.IgnoreAspectRatio, Qt.SmoothTransformation)
+    img = QImage(SIZE, SIZE, QImage.Format_ARGB32_Premultiplied)
+    img.fill(0)
+    p = QPainter(img)
+    p.setRenderHint(QPainter.Antialiasing)
+    p.setRenderHint(QPainter.SmoothPixmapTransform)
+    p.drawImage(QRectF(-12, -6, SIZE + 24, SIZE + 24), sh)
+    hub = QPainterPath()
+    hub.addEllipse(c, R_HUB, R_HUB)
+    for path in petals(n):
+        p.fillPath(path, pal("sector"))
+    p.fillPath(hub, pal("bg"))
+    p.setPen(QPen(pal("line", 230), 1.0))
+    p.setBrush(Qt.NoBrush)
+    for path in petals(n):
+        p.drawPath(path)
+    p.drawEllipse(c, R_HUB - 0.5, R_HUB - 0.5)
+    p.end()
+    return img
 
 
 class RadialMenu(QWidget):
@@ -112,27 +170,20 @@ class RadialMenu(QWidget):
         self.hover = -1          # petal index, -2 = hub, -1 = none
         self.cursor_pos = QPointF(SIZE / 2, SIZE / 2)
         self.hub_text = ""
-        self.backdrop: QPixmap | None = None     # blurred, for the instant fallback
-        self._raw_backdrop = None                 # PIL image for the liquid renderer
-        self.liquid: dict[int, QImage] = {}       # petal count -> rendered glass
-        self.is_light = False
-        self._serial = 0
+        self.shapes: dict[tuple[int, bool], QImage] = {}   # (petal count, light) -> shape
         self.got_drag = False
-        self.hub_armed = False
         self.click_mode = False  # opened from tray/menu instead of a drag
-        self._t = 1.0            # pop-in animation 0..1
-        self._swap = 1.0         # ring-swap animation 0..1
-        self.spring: list[float] = []   # per-petal hover amount 0..1 (eased every frame)
+        self._t = 1.0            # pop-in animation 0..1 (eased)
+        self._swap = 1.0         # ring-swap animation 0..1 (eased)
+        self.spring: list[float] = []   # per-petal hover amount 0..1
         self.hub_spring = 0.0
 
-        self.anim = QVariantAnimation(self, startValue=0.0, endValue=1.0, duration=190,
-                                      easingCurve=QEasingCurve.OutBack)
-        self.anim.valueChanged.connect(self._set_t)
-        self.swap_anim = QVariantAnimation(self, startValue=0.0, endValue=1.0, duration=220,
-                                           easingCurve=QEasingCurve.OutCubic)
-        self.swap_anim.valueChanged.connect(self._set_swap)
-        self.hub_timer = QTimer(self, singleShot=True, interval=420, timeout=self.next_ring)
-        self.frame = QTimer(self, interval=16, timeout=self._tick)   # 60 fps springs
+        self.clock = QElapsedTimer()
+        self._pop_at = 0.0
+        self._swap_at = -1.0
+        self._last = 0.0
+        self.frame = QTimer(self, timeout=self._tick)
+        self.frame.setTimerType(Qt.PreciseTimer)
 
     # ------------------------------------------------------------ show / hide
     def popup(self, pos: QPoint | None = None, paths: list[str] | None = None):
@@ -142,52 +193,10 @@ class RadialMenu(QWidget):
         g = scr.geometry()
         tl.setX(min(max(tl.x(), g.left()), g.right() - SIZE))
         tl.setY(min(max(tl.y(), g.top()), g.bottom() - SIZE))
-        # snapshot what's underneath *before* we appear
-        self._serial += 1
-        self.liquid = {}
-        try:
-            if sys.platform == "darwin":
-                # macOS captures "below the drag window": the drag picture never gets in
-                raw = glass.grab_screen(tl.x(), tl.y(), SIZE, SIZE)
-                if raw is None:
-                    raise RuntimeError("capture failed")
-                from . import platform_mac
-                print("menu: mac windows at cursor:", "; ".join(platform_mac.LAST_SWEEP), flush=True)
-                if self.got_drag or paths is None:
-                    # belt and braces: Finder's drag picture (icon + name label) sits on the
-                    # cursor; erase that area — it ends up under the hub, blurred anyway
-                    cx, cy = pos.x() - tl.x(), pos.y() - tl.y()
-                    raw = glass.inpaint_rects(raw, [(cx - 70, cy - 64, cx + 70, cy + 64)])
-                shot = QPixmap.fromImage(glass.qimage_from_pil(raw))
-            else:
-                with glass.hidden_drag_images() as hid:
-                    shot = scr.grabWindow(0, tl.x() - g.left(), tl.y() - g.top(), SIZE, SIZE)
-                if hid.hwnds:
-                    print(f"menu: hid {len(hid.hwnds)} drag image(s) during capture: {'; '.join(hid.info)}", flush=True)
-                elif hid.info:
-                    print(f"menu: drag-image sweep: {'; '.join(hid.info)}", flush=True)
-                raw = glass.pil_from_qimage(
-                    shot.toImage().scaled(SIZE, SIZE, Qt.IgnoreAspectRatio, Qt.SmoothTransformation))
-                if sys.platform.startswith("linux") and paths is None:
-                    # X11 drag icons (Thunar/GTK) sit on the cursor: erase that patch
-                    cx, cy = pos.x() - tl.x(), pos.y() - tl.y()
-                    hid.rects = [(pos.x() - 60, pos.y() - 60, pos.x() + 60, pos.y() + 60)]
-                if hid.rects:
-                    # belt and braces: erase where the drag picture was, in case it was captured anyway
-                    k = SIZE / max(1, shot.width())
-                    local = [(int((x0 - tl.x()) * k), int((y0 - tl.y()) * k), int((x1 - tl.x()) * k), int((y1 - tl.y()) * k))
-                             for (x0, y0, x1, y1) in hid.rects]
-                    raw = glass.inpaint_rects(raw, local)
-                    shot = QPixmap.fromImage(glass.qimage_from_pil(raw))
-            self._raw_backdrop = raw
-            self.backdrop = glass.blur_pixmap(shot, 24)
-        except Exception:
-            self.backdrop = None
-            self._raw_backdrop = None
+        glass.refresh_palette()
         self.move(tl)
         self.hover = -1
         self.got_drag = False
-        self.hub_armed = False  # drags start on the hub; don't flip until they leave it
         self.click_mode = paths is not None
         early = []
         if paths is None and sys.platform == "darwin":
@@ -202,13 +211,15 @@ class RadialMenu(QWidget):
         else:
             self.paths, self.rings, self.ring_names = [], {}, []
             self.hub_text = "Drop here"
-            for n in (4, 7):  # most common rings: render speculatively
-                self._render(n)
         self._t = 0.0
+        self._swap = 1.0
+        self._swap_at = -1.0
         self._shape()
         self.show()
         self.raise_()
-        self.anim.start()
+        self.clock.start()
+        self._pop_at = self._last = 0.0
+        self.frame.setInterval(frame_ms(scr))
         self.frame.start()
         if self.click_mode:
             # behave like a popup: a click anywhere outside dismisses it
@@ -218,7 +229,6 @@ class RadialMenu(QWidget):
         if self.isVisible():
             self.hide()
             self.frame.stop()
-            self.hub_timer.stop()
             self.dismissed.emit()
 
     def hideEvent(self, e):
@@ -227,20 +237,12 @@ class RadialMenu(QWidget):
             self.releaseMouse()
         super().hideEvent(e)
 
-    def _render(self, n: int):
-        if n <= 0 or n in self.liquid or self._raw_backdrop is None:
-            return
-        self.liquid[n] = QImage()  # placeholder: in flight
-        job = _RenderJob(self._serial, n, self._raw_backdrop)
-        from .util import keep, release
-        job.sig.done.connect(lambda *a, j=job: (release(j), self._rendered(*a)))
-        QThreadPool.globalInstance().start(keep(job))
-
-    def _rendered(self, serial: int, n: int, img: QImage, light: bool):
-        if serial == self._serial:
-            self.liquid[n] = img
-            self.is_light = light
-            self.update()
+    def _shape_for(self, n: int) -> QImage:
+        key = (n, glass.is_light())
+        img = self.shapes.get(key)
+        if img is None:
+            img = self.shapes[key] = menu_shape(n)
+        return img
 
     def _load(self, paths: list[str]):
         paths = resolve_shortcuts(paths)
@@ -249,8 +251,6 @@ class RadialMenu(QWidget):
         self.ring_names = list(self.rings)
         self.ring_idx = 0
         self.hub_text = self.describe(paths)
-        for items in self.rings.values():
-            self._render(len(items))
         self.spring = [0.0] * len(self.items)
         self._shape()
         self.update()
@@ -274,38 +274,39 @@ class RadialMenu(QWidget):
         glass.apply_shape(self, path)
 
     def next_ring(self):
+        """One extra Shift press = one switch (nothing flips on its own)."""
         if len(self.ring_names) > 1:
             self.ring_idx = (self.ring_idx + 1) % len(self.ring_names)
             self.hover = -1
             self.spring = [0.0] * len(self.items)
             self._swap = 0.0
-            self.swap_anim.start()
+            self._swap_at = self.clock.elapsed() / 1000 if self.clock.isValid() else 0.0
             self._shape()
+            if self.isVisible() and not self.frame.isActive():
+                self.frame.start()
             self.update()
 
-    def _set_t(self, v):
-        self._t = float(v)
-        self.update()
-
-    def _set_swap(self, v):
-        self._swap = float(v)
-        self.update()
-
     def _tick(self):
+        now = self.clock.elapsed() / 1000
+        dt = min(now - self._last, 0.1)
+        self._last = now
         moved = False
+        p = min((now - self._pop_at) / POP_SECS, 1.0)
+        if self._t != 1.0:
+            self._t = ease_out_back(p) if p < 1 else 1.0
+            moved = True
+        if self._swap_at >= 0 and self._swap != 1.0:
+            q = min((now - self._swap_at) / SWAP_SECS, 1.0)
+            self._swap = ease_out_cubic(q) if q < 1 else 1.0
+            moved = True
         for i in range(len(self.spring)):
             target = 1.0 if i == self.hover else 0.0
-            v = self.spring[i]
-            nv = v + (target - v) * 0.32
-            if abs(nv - target) < 0.003:
-                nv = target
-            if nv != v:
+            nv = approach(self.spring[i], target, 0.30, dt)
+            if nv != self.spring[i]:
                 self.spring[i] = nv
                 moved = True
-        ht = 1.0 if self.hover == -2 else 0.0
-        nh = self.hub_spring + (ht - self.hub_spring) * 0.3
-        if abs(nh - ht) < 0.003:
-            nh = ht
+        ht = 1.0 if self.hover == -2 and self.click_mode and len(self.ring_names) > 1 else 0.0
+        nh = approach(self.hub_spring, ht, 0.30, dt)
         if nh != self.hub_spring:
             self.hub_spring = nh
             moved = True
@@ -340,12 +341,6 @@ class RadialMenu(QWidget):
             self.cursor_pos = QPointF(pos)
         if h != self.hover:
             self.hover = h
-            if h >= 0:
-                self.hub_armed = True  # visited a petal: hovering the hub may now flip rings
-            if h == -2 and self.hub_armed and len(self.ring_names) > 1:
-                self.hub_timer.start()
-            else:
-                self.hub_timer.stop()
         self.update()
 
     # ------------------------------------------------------------ drag & drop
@@ -420,11 +415,6 @@ class RadialMenu(QWidget):
             self._set_hover(-1)
 
     # ------------------------------------------------------------ painting
-    def _text_colors(self) -> tuple[QColor, QColor, QColor]:
-        if self.is_light:
-            return QColor(28, 20, 44), QColor(28, 20, 44, 170), QColor(255, 255, 255, 120)
-        return QColor(255, 255, 255), QColor(255, 255, 255, 190), QColor(0, 0, 0, 110)
-
     def paintEvent(self, e):
         p = QPainter(self)
         p.setRenderHint(QPainter.Antialiasing)
@@ -434,36 +424,26 @@ class RadialMenu(QWidget):
         t = self._t
         p.setOpacity(min(1.0, max(0.0, t * 1.5)))
         p.translate(c)
-        s = 0.80 + 0.20 * t
+        s = 0.86 + 0.14 * t
         p.scale(s, s)
         p.translate(-c)
 
         items = self.items
         n = len(items)
-        img = self.liquid.get(n) if n else (self.liquid.get(4) or self.liquid.get(7))
-        have_liquid = img is not None and not img.isNull()
+        p.drawImage(0, 0, self._shape_for(n))
 
-        if have_liquid:
-            p.drawImage(0, 0, img)
-        else:
-            self._paint_fallback(p, c, n)
-
-        fg, fg_dim, shadow_col = self._text_colors()
-        rot = (1 - self._swap) * -22
+        rot = (1 - self._swap) * -18
         for i, it in enumerate(items):
             a0, a1 = angles(n, i)
             h = self.spring[i] if i < len(self.spring) else 0.0
             if h > 0.001:
-                self._paint_hover(p, c, a0, a1, h, img if have_liquid else None)
-            self._petal_label(p, c, it, (a0 + a1) / 2 + rot, (R_IN + R_OUT) / 2 + h * 4, h,
-                              fg, shadow_col)
+                self._paint_hover(p, c, n, i, h)
+            self._petal_label(p, c, it, (a0 + a1) / 2 + rot, (R_IN + R_OUT) / 2, h)
         if not n and self.paths:
-            self._paint_unsupported(p, c, fg, fg_dim, shadow_col)
+            self._paint_unsupported(p, c)
+        self._paint_hub(p, c)
 
-        self._paint_hub(p, c, fg, fg_dim, shadow_col)
-
-    def _paint_unsupported(self, p: QPainter, c: QPointF, fg: QColor, fg_dim: QColor,
-                           shadow_col: QColor):
+    def _paint_unsupported(self, p: QPainter, c: QPointF):
         """Nothing to offer: say so in the top band, clear of the cursor and the drag image."""
         ext = Path(self.paths[0]).suffix.lower() or "this file"
         f = QFont(ui_family(True))
@@ -471,54 +451,39 @@ class RadialMenu(QWidget):
         f.setBold(True)
         p.setFont(f)
         r_mid = (R_IN + R_OUT) / 2
-        self._text(p, QRectF(c.x() - R_OUT, c.y() - r_mid - 18, 2 * R_OUT, 18),
-                   f"Can't convert {ext}", fg, shadow_col)
+        p.setPen(glass.color("text"))
+        p.drawText(QRectF(c.x() - R_OUT, c.y() - r_mid - 18, 2 * R_OUT, 18), Qt.AlignCenter, f"Can't convert {ext}")
         f.setPixelSize(10)
         f.setBold(False)
         p.setFont(f)
-        self._text(p, QRectF(c.x() - R_OUT, c.y() - r_mid + 1, 2 * R_OUT, 16),
-                   "Images · PDF · Word · Text", fg_dim, None)
+        p.setPen(glass.color("dim"))
+        p.drawText(QRectF(c.x() - R_OUT, c.y() - r_mid + 1, 2 * R_OUT, 16), Qt.AlignCenter,
+                   "Images · PDF · Word · Text")
 
-    def _paint_fallback(self, p: QPainter, c: QPointF, n: int):
-        hub = QPainterPath()
-        hub.addEllipse(c, R_HUB, R_HUB)
-        glass.paint_glass(p, hub, self.backdrop, QPointF(0, 0), tint=QColor(22, 18, 34, 80),
-                          rainbow_alpha=150, highlight=1.3)
-        for i in range(n):
-            a0, a1 = angles(n, i)
-            glass.paint_glass(p, sector_path(c, R_IN, R_OUT, a0, a1), self.backdrop, QPointF(0, 0),
-                              tint=QColor(22, 18, 34, 62), rainbow_alpha=140)
-
-    def _paint_hover(self, p: QPainter, c: QPointF, a0: float, a1: float, h: float, img: QImage | None):
+    def _paint_hover(self, p: QPainter, c: QPointF, n: int, i: int, h: float):
+        a0, a1 = angles(n, i)
         mid = math.radians((a0 + a1) / 2)
         r_mid = (R_IN + R_OUT) / 2
         pc = QPointF(c.x() + r_mid * math.cos(mid), c.y() - r_mid * math.sin(mid))
-        k = 1 + 0.07 * h                     # elastic "pop" towards the cursor
+        k = 1 + 0.05 * h                     # grows a little and moves out towards the cursor
         push = 6 * h
         off = QPointF(push * math.cos(mid), -push * math.sin(mid))
-        path = sector_path(c, R_IN - 1, R_OUT + 1, a0, a1)
         p.save()
         p.translate(pc + off)
         p.scale(k, k)
         p.translate(-pc)
-        # only the glass itself moves: the slice's own refraction, enlarged — no added light
-        if img is not None:
-            p.save()
-            p.setClipPath(path)
-            p.drawImage(0, 0, img)
-            p.restore()
-        else:
-            glass.paint_glass(p, path, self.backdrop, QPointF(0, 0), tint=QColor(22, 18, 34, 62),
-                              rainbow_alpha=140)
+        p.fillPath(petals(n)[i], mix(glass.color("sector"), glass.color("accent"), h))
         p.restore()
 
-    def _paint_hub(self, p: QPainter, c: QPointF, fg: QColor, fg_dim: QColor, shadow_col: QColor):
-        p.setPen(glass.iridescent_pen(c, 1.2, 150, angle=60))
-        p.setBrush(Qt.NoBrush)
-        p.drawEllipse(c, R_HUB - 0.5, R_HUB - 0.5)
-
+    def _paint_hub(self, p: QPainter, c: QPointF):
+        pal = glass.color
+        if self.hub_spring > 0.001:
+            p.setPen(QPen(pal("accent", int(255 * self.hub_spring)), 1.6))
+            p.setBrush(Qt.NoBrush)
+            p.drawEllipse(c, R_HUB - 3, R_HUB - 3)
         items = self.items
         hov = items[self.hover] if 0 <= self.hover < len(items) else None
+        sub_col = pal("dim")
         if hov is not None:
             top, sub = hov.label if not hov.glyph else hov.label.title(), hov.hint or ""
         else:
@@ -527,52 +492,47 @@ class RadialMenu(QWidget):
             if len(self.ring_names) > 1:
                 other = self.ring_names[(self.ring_idx + 1) % len(self.ring_names)]
                 sub = f"⇧ {other.upper()}"
+                sub_col = pal("accent")
             else:
                 sub = ring_name.upper()
         f = QFont(ui_family(True))
         f.setPixelSize(14)
         f.setBold(True)
         p.setFont(f)
-        rect_top = QRectF(c.x() - R_HUB + 4, c.y() - 21, 2 * R_HUB - 8, 20)
-        self._text(p, rect_top, top, fg, shadow_col)
+        p.setPen(pal("text"))
+        p.drawText(QRectF(c.x() - R_HUB + 4, c.y() - 21, 2 * R_HUB - 8, 20), Qt.AlignCenter, top)
         f.setPixelSize(10)
         f.setBold(False)
         p.setFont(f)
-        self._text(p, QRectF(c.x() - R_HUB + 6, c.y() + 2, 2 * R_HUB - 12, 28), sub, fg_dim, None,
-                   Qt.AlignHCenter | Qt.AlignTop | Qt.TextWordWrap)
+        p.setPen(sub_col)
+        p.drawText(QRectF(c.x() - R_HUB + 6, c.y() + 2, 2 * R_HUB - 12, 28),
+                   Qt.AlignHCenter | Qt.AlignTop | Qt.TextWordWrap, sub)
 
-    @staticmethod
-    def _text(p: QPainter, r: QRectF, text: str, col: QColor, shadow: QColor | None,
-              flags=Qt.AlignCenter):
-        if shadow is not None:
-            p.setPen(shadow)
-            p.drawText(r.translated(0, 1), flags, text)
-        p.setPen(col)
-        p.drawText(r, flags, text)
-
-    def _petal_label(self, p: QPainter, c: QPointF, it: Item, ang: float, r: float,
-                     h: float, fg: QColor, shadow_col: QColor):
+    def _petal_label(self, p: QPainter, c: QPointF, it: Item, ang: float, r: float, h: float):
         rad = math.radians(ang)
-        push = 6 * h
-        pt = QPointF(c.x() + (r + push) * math.cos(rad), c.y() - (r + push) * math.sin(rad))
+        r += 6 * h
+        pt = QPointF(c.x() + r * math.cos(rad), c.y() - r * math.sin(rad))
         p.save()
-        p.setOpacity(p.opacity() * (0.25 + 0.75 * self._swap))
-        col = QColor(255, 255, 255) if h > 0.5 else fg   # hovered petal is warm-lit: white text
+        p.setOpacity(p.opacity() * (0.2 + 0.8 * self._swap))
+        col = mix(glass.color("text"), glass.color("on_accent"), h)
+        dim = mix(glass.color("dim"), glass.color("on_accent"), h)
         f = QFont(ui_family(True))
         if it.glyph:
-            f.setPixelSize(int(18 + 3 * h))
+            f.setPixelSize(18)
             p.setFont(f)
-            self._text(p, QRectF(pt.x() - 30, pt.y() - 24, 60, 24), it.glyph, col, shadow_col,
-                       Qt.AlignHCenter | Qt.AlignBottom)
+            p.setPen(col)
+            p.drawText(QRectF(pt.x() - 30, pt.y() - 24, 60, 24), Qt.AlignHCenter | Qt.AlignBottom, it.glyph)
             f.setPixelSize(10)
             f.setBold(True)
             f.setLetterSpacing(QFont.AbsoluteSpacing, 0.7)
             p.setFont(f)
-            self._text(p, QRectF(pt.x() - 42, pt.y() + 1, 84, 16), it.label.upper(), col, shadow_col)
+            p.setPen(dim)
+            p.drawText(QRectF(pt.x() - 46, pt.y() + 1, 92, 16), Qt.AlignCenter, it.label.upper())
         else:
-            f.setPixelSize(int(14 + 2 * h))
+            f.setPixelSize(14)
             f.setBold(True)
             f.setLetterSpacing(QFont.AbsoluteSpacing, 0.9)
             p.setFont(f)
-            self._text(p, QRectF(pt.x() - 42, pt.y() - 12, 84, 24), it.label, col, shadow_col)
+            p.setPen(col)
+            p.drawText(QRectF(pt.x() - 46, pt.y() - 12, 92, 24), Qt.AlignCenter, it.label)
         p.restore()

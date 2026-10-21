@@ -339,10 +339,14 @@ def main() -> int:
     Settings().apply()
     if "--selftest" in sys.argv:
         from .selftest_ui import run
-        return run()
-    Worker(qapp)
-    emit({"ev": "log", "text": "ready"})
-    return qapp.exec()
+        code = run()
+    else:
+        Worker(qapp)
+        emit({"ev": "log", "text": "ready"})
+        code = qapp.exec()
+    from .media_tools import before_exit
+    before_exit()
+    return code
 
 
 if __name__ == "__main__":

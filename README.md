@@ -1,6 +1,6 @@
 # DragShift
 
-**Начните тащить любой файл, нажмите Shift и бросьте его на сектор стеклянного меню.** Конвертация и правка картинок, PDF, документов, **аудио и видео** прямо из Проводника, без открытия программ.
+**Начните тащить любой файл, нажмите Shift и бросьте его на сектор радиального меню.** Конвертация и правка картинок, PDF, документов, **аудио и видео** прямо из Проводника, без открытия программ.
 
 [English below](#english)
 
@@ -81,7 +81,7 @@ powershell -ExecutionPolicy Bypass -File packaging\build.ps1 -Python .venv\Scrip
 <a name="english"></a>
 ## English
 
-**Start dragging any file, press Shift, drop it on a slice of the glass menu.** Convert and edit images, PDFs, documents, **audio and video** right from File Explorer.
+**Start dragging any file, press Shift, drop it on a slice of the menu.** Convert and edit images, PDFs, documents, **audio and video** right from File Explorer.
 
 **Download** from the [latest release](../../releases/latest): `DragShift-2.0.0-Setup.exe` (per-user, no admin, adds a right-click **DragShift…** entry and Send To) or `DragShift-2.0.0-Portable.zip`. Windows 10/11 x64, ffmpeg included.
 
