@@ -1,0 +1,61 @@
+[   0.02] macOS 15.7.9 screen (1024, 768)
+[  13.80] icon positions (screen): {'D-Photo.jpg': (140, 148), 'D-Report.pdf': (140, 263), 'D-Appendix.pdf': (140, 378), 'D-Letter.docx': (140, 493), 'D-Graphic.png': (140, 608)}
+[  13.99] measured blob offset (not applied): -2 -26
+[  26.56] PASS JPG → PNG                       10.4s  D-Photo.png · 2400×1600
+[  28.25] icon positions (screen): {'D-Photo.jpg': (140, 148), 'D-Report.pdf': (140, 263), 'D-Appendix.pdf': (140, 378), 'D-Letter.docx': (140, 493), 'D-Graphic.png': (140, 608)}
+[  38.66] PASS JPG → WEBP                       9.8s  D-Photo.webp · 2400×1600
+[  40.34] icon positions (screen): {'D-Photo.jpg': (140, 148), 'D-Report.pdf': (140, 263), 'D-Appendix.pdf': (140, 378), 'D-Letter.docx': (140, 493), 'D-Graphic.png': (140, 608)}
+[  50.63] PASS JPG → HEIC                       9.7s  D-Photo.heic · 2400×1600
+[  52.31] icon positions (screen): {'D-Photo.jpg': (140, 148), 'D-Report.pdf': (140, 263), 'D-Appendix.pdf': (140, 378), 'D-Letter.docx': (140, 493), 'D-Graphic.png': (140, 608)}
+[  76.12] Traceback (most recent call last):
+  File "/Users/runner/work/DragShift/DragShift/demo/e2e_mac.py", line 292, in run
+    raise AssertionError("no output file appeared")
+AssertionError: no output file appeared
+
+[  76.23] FAIL JPG → PDF                       23.3s  AssertionError: no output file appeared
+[  77.77] icon positions (screen): {'D-Photo.jpg': (140, 148), 'D-Report.pdf': (140, 263), 'D-Appendix.pdf': (140, 378), 'D-Letter.docx': (140, 493), 'D-Graphic.png': (140, 608)}
+[  87.04] PASS PNG → JPG                        8.7s  D-Graphic.jpg · 800×533
+[  88.54] icon positions (screen): {'D-Photo.jpg': (140, 148), 'D-Report.pdf': (140, 263), 'D-Appendix.pdf': (140, 378), 'D-Letter.docx': (140, 493), 'D-Graphic.png': (140, 608)}
+[ 111.92] Traceback (most recent call last):
+  File "/Users/runner/work/DragShift/DragShift/demo/e2e_mac.py", line 292, in run
+    raise AssertionError("no output file appeared")
+AssertionError: no output file appeared
+
+[ 111.99] FAIL PDF → JPG (3 pages)             22.9s  AssertionError: no output file appeared
+[ 113.64] icon positions (screen): {'D-Photo.jpg': (140, 148), 'D-Report.pdf': (140, 263), 'D-Appendix.pdf': (140, 378), 'D-Letter.docx': (140, 493), 'D-Graphic.png': (140, 608)}
+[ 123.55] PASS PDF → TXT                        9.3s  D-Report.txt
+[ 125.51] icon positions (screen): {'D-Photo.jpg': (140, 148), 'D-Report.pdf': (140, 263), 'D-Appendix.pdf': (140, 378), 'D-Letter.docx': (140, 493), 'D-Graphic.png': (140, 608)}
+[ 149.06] Traceback (most recent call last):
+  File "/Users/runner/work/DragShift/DragShift/demo/e2e_mac.py", line 292, in run
+    raise AssertionError("no output file appeared")
+AssertionError: no output file appeared
+
+[ 149.16] FAIL DOCX → PDF                      23.1s  AssertionError: no output file appeared
+[ 150.77] icon positions (screen): {'D-Photo.jpg': (140, 148), 'D-Report.pdf': (140, 263), 'D-Appendix.pdf': (140, 378), 'D-Letter.docx': (140, 493), 'D-Graphic.png': (140, 608)}
+[ 161.05] PASS PDF Split                        9.7s  3 PDFs
+[ 162.53] icon positions (screen): {'D-Photo.jpg': (140, 148), 'D-Report.pdf': (140, 263), 'D-Appendix.pdf': (140, 378), 'D-Letter.docx': (140, 493), 'D-Graphic.png': (140, 608)}
+[ 173.42] PASS PDF Rotate                      10.3s  all pages at 90°
+[ 175.39] icon positions (screen): {'D-Photo.jpg': (140, 148), 'D-Report.pdf': (140, 263), 'D-Appendix.pdf': (140, 378), 'D-Letter.docx': (140, 493), 'D-Graphic.png': (140, 608)}
+[ 185.67] PASS PDF Compress                     9.8s  227 KB → 108 KB
+[ 187.23] icon positions (screen): {'D-Photo.jpg': (140, 148), 'D-Report.pdf': (140, 263), 'D-Appendix.pdf': (140, 378), 'D-Letter.docx': (140, 493), 'D-Graphic.png': (140, 608)}
+[ 200.88] PASS Merge 2 PDFs                    13.1s  5 pages
+[ 202.44] icon positions (screen): {'D-Photo.jpg': (140, 148), 'D-Report.pdf': (140, 263), 'D-Appendix.pdf': (140, 378), 'D-Letter.docx': (140, 493), 'D-Graphic.png': (140, 608)}
+[ 229.12] Traceback (most recent call last):
+  File "/Users/runner/work/DragShift/DragShift/demo/e2e_mac.py", line 292, in run
+    raise AssertionError("no output file appeared")
+AssertionError: no output file appeared
+
+[ 229.19] FAIL Compress (window, Enter)        26.2s  AssertionError: no output file appeared
+[ 230.84] icon positions (screen): {'D-Photo.jpg': (140, 148), 'D-Report.pdf': (140, 263), 'D-Appendix.pdf': (140, 378), 'D-Letter.docx': (140, 493), 'D-Graphic.png': (140, 608)}
+[ 243.52] PASS Resize 50% (window, Enter)      12.1s  2400×1600 → 1200×800
+[ 245.13] icon positions (screen): {'D-Photo.jpg': (140, 148), 'D-Report.pdf': (140, 263), 'D-Appendix.pdf': (140, 378), 'D-Letter.docx': (140, 493), 'D-Graphic.png': (140, 608)}
+[ 272.70] Traceback (most recent call last):
+  File "/Users/runner/work/DragShift/DragShift/demo/e2e_mac.py", line 292, in run
+    raise AssertionError("no output file appeared")
+AssertionError: no output file appeared
+
+[ 272.79] FAIL Add BG (window, Enter)          27.1s  AssertionError: no output file appeared
+[ 274.37] icon positions (screen): {'D-Photo.jpg': (140, 148), 'D-Report.pdf': (140, 263), 'D-Appendix.pdf': (140, 378), 'D-Letter.docx': (140, 493), 'D-Graphic.png': (140, 608)}
+[ 287.39] PASS Metadata: remove all (Enter)    12.5s  0 metadata fields left
+[ 288.89] icon positions (screen): {'D-Photo.jpg': (140, 148), 'D-Report.pdf': (140, 263), 'D-Appendix.pdf': (140, 378), 'D-Letter.docx': (140, 493), 'D-Graphic.png': (140, 608)}
+[ 290.03] DONE 12/17
