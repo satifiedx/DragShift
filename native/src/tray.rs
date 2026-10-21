@@ -88,6 +88,42 @@ pub fn pick_files(owner: HWND) -> Vec<PathBuf> {
     }
 }
 
+/// Windows' own folder picker, opened at `start` when it still exists.
+pub fn pick_folder(owner: HWND, start: &str) -> Option<PathBuf> {
+    use windows::Win32::System::Com::*;
+    unsafe {
+        let init = CoInitializeEx(None, COINIT_APARTMENTTHREADED).is_ok();
+        let picked = folder_dialog(owner, start);
+        if init {
+            CoUninitialize(); // after the dialog's COM objects are gone
+        }
+        picked
+    }
+}
+
+unsafe fn folder_dialog(owner: HWND, start: &str) -> Option<PathBuf> {
+    use windows::Win32::System::Com::*;
+    {
+        let dlg: IFileOpenDialog = CoCreateInstance(&FileOpenDialog, None, CLSCTX_INPROC_SERVER).ok()?;
+        let opts = dlg.GetOptions().ok()?;
+        dlg.SetOptions(opts | FOS_PICKFOLDERS | FOS_FORCEFILESYSTEM | FOS_PATHMUSTEXIST).ok()?;
+        let title = wide(t("Where to save the screenshot"));
+        let _ = dlg.SetTitle(PCWSTR(title.as_ptr()));
+        if !start.is_empty() && std::path::Path::new(start).is_dir() {
+            let s = wide(start);
+            if let Ok(item) = SHCreateItemFromParsingName::<_, _, IShellItem>(PCWSTR(s.as_ptr()), None) {
+                let _ = dlg.SetFolder(&item);
+            }
+        }
+        let _ = SetForegroundWindow(owner);
+        dlg.Show(owner).ok()?; // cancelled: an error
+        let name = dlg.GetResult().ok()?.GetDisplayName(SIGDN_FILESYSPATH).ok()?;
+        let path = name.to_string().ok();
+        CoTaskMemFree(Some(name.0 as *const _));
+        path.map(PathBuf::from)
+    }
+}
+
 /// Follow the system's dark mode in context menus (uxtheme's unnamed SetPreferredAppMode).
 pub fn allow_dark_menus() {
     unsafe {

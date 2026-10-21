@@ -94,6 +94,10 @@ def summarize(action: str, srcs: list, outs: list, extra: str = "") -> Result:
         bits.append(human_size(after))
         return Result(title, " · ".join(bits), outs, srcs)
 
+    if kind == "shot":
+        bits = [_dim_str(dims(o0)), human_size(after), o0.name] if len(outs) == 1 else [tr("{} files", len(outs)), human_size(after)]
+        return Result(tr("Screenshot saved"), " · ".join(b for b in bits if b), outs, srcs, good=name)
+
     if name == "Compress":
         sizes, verdict = size_change(before, after)
         title = tr("Compressed {} files", len(srcs)) if len(srcs) > 1 else tr("Compressed")

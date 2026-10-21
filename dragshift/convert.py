@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import html
 import io
-import sys
 from pathlib import Path
 
 from PIL import Image, ImageOps
@@ -128,6 +127,39 @@ def image_to(src: str | Path, target: str) -> list[Path]:
     out = sibling(src, ext="." + target.lower())
     save_image(im, out, target)
     return [out]
+
+
+def save_clipboard(target: str, folder: Path) -> list[Path]:
+    """Whatever picture is on the clipboard (Win+Shift+S, Print Screen, a copied image or image
+    files copied in Explorer) saved as `target` into `folder`."""
+    import datetime
+    import re
+    from PIL import ImageGrab
+    from .util import category, unique_path
+    target = target.upper()
+    grabbed = ImageGrab.grabclipboard()
+    if isinstance(grabbed, list):
+        files = [f for f in grabbed if category(f) == "image"]
+        if not files:
+            raise UserError(tr("There's no picture on the clipboard. Take a screenshot with Win+Shift+S first."))
+        pics = ((open_image(f), Path(f).stem) for f in files)   # one at a time: could be a hundred photos
+    elif grabbed is None:
+        raise UserError(tr("There's no picture on the clipboard. Take a screenshot with Win+Shift+S first."))
+    else:
+        pics = [(grabbed, "")]
+    folder.mkdir(parents=True, exist_ok=True)
+    stamp = datetime.datetime.now().strftime("%Y-%m-%d %H-%M-%S")
+    outs = []
+    for im, stem in pics:
+        if im.mode not in ("RGB", "RGBA", "L"):
+            im = im.convert("RGBA" if "A" in im.mode else "RGB")
+        # Win+Shift+S also puts its temp file ({GUID}.png in ScreenClip) on the clipboard
+        if not stem or re.fullmatch(r"\{?[0-9A-Fa-f-]{36}\}?", stem):
+            stem = f"{tr('Screenshot')} {stamp}"
+        out = unique_path(folder / f"{stem}.{target.lower()}")
+        save_image(im, out, target)
+        outs.append(out)
+    return outs
 
 
 def images_to_single_pdf(srcs: list[str | Path]) -> list[Path]:
@@ -274,25 +306,6 @@ def docx_to_txt(src: str | Path) -> list[Path]:
     return [out]
 
 
-def _word_to_pdf(src: Path, out: Path) -> bool:
-    """Use Microsoft Word (if installed) for a perfect-fidelity export."""
-    if sys.platform != "win32":
-        return False
-    try:
-        import win32com.client  # type: ignore
-        word = win32com.client.DispatchEx("Word.Application")
-        word.Visible = False
-        try:
-            doc = word.Documents.Open(str(src.resolve()), ReadOnly=True)
-            doc.SaveAs(str(out.resolve()), FileFormat=17)  # wdFormatPDF
-            doc.Close(False)
-        finally:
-            word.Quit()
-        return out.exists()
-    except Exception:
-        return False
-
-
 CSS = """
 * { font-family: sans-serif; }
 body { font-size: 11pt; line-height: 1.35; }
@@ -305,7 +318,8 @@ td { border: 1px solid #888; padding: 3pt 5pt; font-size: 10pt; }
 
 
 def html_to_pdf(body_html: str, out: Path) -> None:
-    story = fitz.Story(html=body_html, user_css=CSS)
+    from . import fonts
+    story = fitz.Story(html=body_html, user_css=CSS + fonts.css(), archive=fonts.archive())
     writer = fitz.DocumentWriter(str(out))
     mediabox = fitz.paper_rect("letter")
     where = mediabox + (54, 54, -54, -54)
@@ -316,12 +330,14 @@ def html_to_pdf(body_html: str, out: Path) -> None:
         story.draw(dev)
         writer.end_page()
     writer.close()
+    fonts.fix_file(out)
 
 
 def docx_to_pdf(src: str | Path) -> list[Path]:
     src = Path(src)
     out = sibling(src, ext=".pdf")
-    if not _word_to_pdf(src, out):
+    from .office import libreoffice_export, office_export
+    if not (office_export(src, out) or libreoffice_export(src, out)):
         html_to_pdf(docx_to_html(src), out)
     return [out]
 
@@ -363,7 +379,7 @@ def targets_for(cat: str, src_ext: str) -> list[str]:
         if not HEIF_OK:
             t = [x for x in t if x != "HEIC"]
         return t
-    return {"pdf": PDF_TARGETS, "docx": DOCX_TARGETS, "text": TEXT_TARGETS}.get(cat, [])
+    return {"pdf": PDF_TARGETS, "docx": DOCX_TARGETS, "text": TEXT_TARGETS, "office": ["PDF"]}.get(cat, [])
 
 
 def convert(src: str | Path, cat: str, target: str) -> list[Path]:
@@ -379,6 +395,9 @@ def convert(src: str | Path, cat: str, target: str) -> list[Path]:
             return pdf_to_docx(src)
     if cat == "docx":
         return docx_to_pdf(src) if target == "PDF" else docx_to_txt(src)
+    if cat == "office" and target == "PDF":
+        from .office import to_pdf
+        return to_pdf(src)
     if cat == "text":
         return text_to_pdf(src) if target == "PDF" else text_to_docx(src)
     raise ValueError(f"Can't convert {cat} to {target}")

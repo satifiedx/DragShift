@@ -18,9 +18,9 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, AtomicIsize, AtomicU32, Ordering};
 use std::sync::Arc;
-use windows::core::PCWSTR;
+use windows::core::{w, PCWSTR};
 use windows::Win32::Foundation::*;
-use windows::Win32::System::DataExchange::COPYDATASTRUCT;
+use windows::Win32::System::DataExchange::{IsClipboardFormatAvailable, RegisterClipboardFormatW, COPYDATASTRUCT};
 use windows::Win32::System::LibraryLoader::GetModuleHandleW;
 use windows::Win32::UI::WindowsAndMessaging::*;
 
@@ -44,6 +44,8 @@ const ID_SETTINGS: usize = 3;
 const ID_HELP: usize = 4;
 const ID_ABOUT: usize = 5;
 const ID_QUIT: usize = 9;
+const ID_SHOT: usize = 100;    // + index into IMAGE_TARGETS: to Pictures\Screenshots
+const ID_SHOT_TO: usize = 200; // + index into IMAGE_TARGETS: to a folder picked now
 
 pub const REPO_URL: &str = "https://github.com/satifiedx/DragShift";
 
@@ -270,6 +272,18 @@ impl App {
         self.idle_check();
     }
 
+    fn save_clipboard(&mut self, fmt: &str, folder: Option<PathBuf>) {
+        let id = self.new_job(None, 1);
+        self.toasts.start(id, t("Saving screenshot…"), fmt, false);
+        let folder = folder.map(|d| d.display().to_string()).unwrap_or_default();
+        self.worker_send(json!({"op": "clipboard", "job": id, "format": fmt, "folder": folder}), true);
+        if !self.jobs.contains_key(&id) {
+            return;
+        }
+        self.worker.jobs += 1;
+        self.idle_check();
+    }
+
     fn worker_send(&mut self, msg: Value, is_job: bool) -> bool {
         unsafe {
             // let the editor windows come to the front
@@ -464,6 +478,16 @@ fn tray_menu(hwnd: HWND) {
         add(ID_ENABLED, t("Enabled"), if enabled { MF_CHECKED } else { MF_UNCHECKED });
         add(0, "", MF_SEPARATOR);
         add(ID_OPEN, t("Open a file…"), MF_STRING);
+        let grayed = if clipboard_has_picture() { MF_ENABLED } else { MF_GRAYED };
+        for (base, label) in [(ID_SHOT, t("Save screenshot to Pictures")), (ID_SHOT_TO, t("Save screenshot to a folder…"))] {
+            let formats = CreatePopupMenu().unwrap_or_default();
+            for (i, f) in actions::IMAGE_TARGETS.iter().enumerate() {
+                let w = wide(&format!("{f}	{}", actions::format_hint(f)));
+                let _ = AppendMenuW(formats, MF_STRING, base + i, PCWSTR(w.as_ptr()));
+            }
+            let w = wide(label);
+            let _ = AppendMenuW(m, MF_POPUP | grayed, formats.0 as usize, PCWSTR(w.as_ptr()));
+        }
         add(ID_SETTINGS, t("Settings…"), MF_STRING);
         add(ID_HELP, t("How to use"), MF_STRING);
         add(ID_ABOUT, t("About DragShift"), MF_STRING);
@@ -495,6 +519,17 @@ fn tray_menu(hwnd: HWND) {
             open_files(files);
         }
         ID_SETTINGS => open_settings(),
+        i if (ID_SHOT..ID_SHOT + actions::IMAGE_TARGETS.len()).contains(&i) => {
+            let fmt = actions::IMAGE_TARGETS[i - ID_SHOT];
+            with_app(|a| a.save_clipboard(fmt, None));
+        }
+        i if (ID_SHOT_TO..ID_SHOT_TO + actions::IMAGE_TARGETS.len()).contains(&i) => {
+            let fmt = actions::IMAGE_TARGETS[i - ID_SHOT_TO];
+            if let Some(dir) = crate::tray::pick_folder(hwnd, &settings::get().shot_folder) {
+                settings::update(|s| s.shot_folder = dir.display().to_string());
+                with_app(|a| a.save_clipboard(fmt, Some(dir)));
+            }
+        }
         ID_HELP => {
             with_app(|a| a.toasts.info(t("How to use DragShift"),
                 &tf("Start dragging a file, press {} and drop it on a petal. Press {} again for more options.", &[&trigger_name(), &trigger_name()]),
@@ -503,6 +538,18 @@ fn tray_menu(hwnd: HWND) {
         ID_ABOUT => util::open_url(REPO_URL),
         ID_QUIT => unsafe { PostQuitMessage(0) },
         _ => {}
+    }
+}
+
+/// A screenshot (Win+Shift+S, Print Screen), a copied picture or copied files.
+fn clipboard_has_picture() -> bool {
+    const CF_BITMAP: u32 = 2;
+    const CF_DIB: u32 = 8;
+    const CF_HDROP: u32 = 15;
+    const CF_DIBV5: u32 = 17;
+    unsafe {
+        let png = RegisterClipboardFormatW(w!("PNG"));
+        [CF_BITMAP, CF_DIB, CF_DIBV5, CF_HDROP, png].iter().any(|&f| f != 0 && IsClipboardFormatAvailable(f).is_ok())
     }
 }
 

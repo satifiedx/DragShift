@@ -17,6 +17,7 @@ pub struct Settings {
     pub gpu: bool,           // use NVENC / Quick Sync / AMF when the PC has them
     pub ui_idle_seconds: u32, // how long the editor process stays warm after its last window
     pub enabled: bool,
+    pub shot_folder: String, // last folder picked for "Save screenshot to a folder"
 }
 
 impl Default for Settings {
@@ -32,6 +33,7 @@ impl Default for Settings {
             gpu: true,
             ui_idle_seconds: 60,
             enabled: true,
+            shot_folder: String::new(),
         }
     }
 }

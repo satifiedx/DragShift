@@ -1,7 +1,7 @@
 ; Inno Setup script: per-user install, no admin rights needed. Built by packaging\build.ps1.
 #define AppVersion GetEnv("DS_VERSION")
 #if AppVersion == ""
-  #define AppVersion "2.0.0"
+  #define AppVersion "2.1.0"
 #endif
 
 [Setup]

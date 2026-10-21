@@ -179,6 +179,8 @@ class Worker(QObject):
         try:
             if op == "run":
                 self.run(int(msg["job"]), msg.get("key", ""), msg.get("cat", ""), list(msg.get("paths", [])))
+            elif op == "clipboard":
+                self.save_clipboard(int(msg["job"]), msg.get("format", "PNG"), msg.get("folder", ""))
             elif op == "settings":
                 self.open_settings()
             elif op == "cancel":
@@ -233,6 +235,16 @@ class Worker(QObject):
             self.open(job, name, lambda: IMAGE_WINDOWS[name](same[0], self.notify))
         else:
             raise UserError(f"unknown action {key}")
+
+    def save_clipboard(self, job: int, fmt: str, folder: str = ""):
+        from pathlib import Path
+        from PySide6.QtCore import QStandardPaths
+        if folder:
+            folder = Path(folder)
+        else:
+            pictures = QStandardPaths.writableLocation(QStandardPaths.StandardLocation.PicturesLocation)
+            folder = Path(pictures or Path.home()) / "Screenshots"
+        self.background({"job": job}, f"shot:{fmt}", [], lambda: convert.save_clipboard(fmt, folder))
 
     def open(self, job: int | None, name: str, make):
         try:

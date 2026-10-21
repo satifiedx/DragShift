@@ -10,8 +10,8 @@
 
 В [последнем релизе](../../releases/latest):
 
-- **DragShift-2.0.0-Setup.exe** (рекомендую). Ставится только для вашего пользователя, админ не нужен. Добавляет пункт в Пуск, автозапуск (по желанию), пункт **DragShift…** в контекстное меню и **Отправить → DragShift**. Удаляется начисто через Параметры → Приложения.
-- **DragShift-2.0.0-Portable.zip**. Распаковал и запустил `DragShift.exe`, ничего не ставится.
+- **DragShift-2.1.0-Setup.exe** (рекомендую). Ставится только для вашего пользователя, админ не нужен. Добавляет пункт в Пуск, автозапуск (по желанию), пункт **DragShift…** в контекстное меню и **Отправить → DragShift**. Удаляется начисто через Параметры → Приложения.
+- **DragShift-2.1.0-Portable.zip**. Распаковал и запустил `DragShift.exe`, ничего не ставится.
 
 Windows 10 и 11, 64 бита. ffmpeg уже внутри, ничего доустанавливать не надо.
 
@@ -26,6 +26,7 @@ Windows 10 и 11, 64 бита. ffmpeg уже внутри, ничего доус
 5. Видео (**mp4/mkv/mov…**): кольцо **Сжатие** ужмёт ролик до 10, 25 или 50 МБ для Discord и мессенджеров. На видеокартах NVIDIA, Intel и AMD это в разы быстрее.
 6. **Инструменты → Обрезать** открывает окно с волной и раскадровкой: тащите края, слушайте пробелом, ставьте затухания.
 7. Без перетаскивания: правый клик по файлу → **DragShift…**, **Отправить → DragShift**, или иконка в трее → **Открыть файл…**.
+8. Сделайте скриншот через **Win+Shift+S**, кликните иконку в трее → **Сохранить скриншот в «Изображения»** и выберите формат. Файл сразу ляжет в `Изображения\Screenshots`.
 
 ## Что умеет
 
@@ -36,8 +37,11 @@ Windows 10 и 11, 64 бита. ffmpeg уже внутри, ничего доус
 | **Картинки** png, jpg, webp, heic, avif, tiff, bmp, gif, ico | PNG, JPG, WEBP, HEIC, TIFF, AVIF, BMP, PDF, ICO, GIF | Сжатие, размер, кадрирование, правка света и цвета, пометки, скрытие личного, фон, метаданные и GPS |
 | **PDF** | JPG, PNG, DOCX, TXT | Сжатие, разделение, поворот, объединение, пароль, достать картинки, метаданные |
 | **DOCX, TXT, MD, CSV…** | PDF, TXT, DOCX | |
+| **Excel, PowerPoint** xlsx, xlsm, xls, pptx, ppt | PDF | Если стоит Microsoft Office или LibreOffice, конвертирует через них. Без них DragShift сам рисует таблицы и слайды: текст, картинки, заливки, таблицы, шрифты презентации |
 
 Когда это возможно, DragShift вообще не перекодирует: смена контейнера, поворот MP4/MOV и быстрая обрезка копируют потоки как есть и делаются за доли секунды. Обложки альбомов и теги сохраняются. Битрейт выше исходного DragShift делать откажется, потому что файл только раздуется. А если ролик и так меньше 10 МБ, он просто скажет об этом и ничего не создаст.
+
+**Скриншоты из буфера.** Сделали скрин через Win+Shift+S или Print Screen, кликните иконку в трее. Там два пункта: **Сохранить скриншот в «Изображения»** (сразу в `Изображения\Screenshots`) и **Сохранить скриншот в папку…** (спросит папку и запомнит её). Форматы любые: PNG, JPG, WEBP, HEIC, TIFF, AVIF, BMP, PDF, ICO, GIF. Скопированные в Проводнике картинки тоже сохраняются. Когда в буфере нет картинки, пункты серые.
 
 **Вид.** Матовое меню и окна в цветах эспрессо с терракотовым акцентом. Светлая и тёмная тема переключаются вместе с Windows, а в Настройках → Тема можно закрепить любую. Анимации идут с частотой вашего монитора (60, 144, 240 Гц).
 
@@ -65,11 +69,13 @@ Windows 10 и 11, 64 бита. ffmpeg уже внутри, ничего доус
 
 | Файл | SHA-256 | VirusTotal |
 |---|---|---|
-| DragShift-2.0.0-Setup.exe | `877a65c2fcfce22c28b868dc74515fc5cf87b87f457765da67cd3214a03ca8c0` | [0 детектов](https://www.virustotal.com/gui/file/877a65c2fcfce22c28b868dc74515fc5cf87b87f457765da67cd3214a03ca8c0) |
-| DragShift-2.0.0-Portable.zip | `b9f1f432bbfe02a31f868c8724de97d156d717eda175e631d67824faf9392b63` | [1/65](https://www.virustotal.com/gui/file/b9f1f432bbfe02a31f868c8724de97d156d717eda175e631d67824faf9392b63) |
-| DragShift.exe (демон) | `9ff2c99f91b65622d009909079e5b49e06afd0c149d2b23daad3a370c5b9f174` | [1/71](https://www.virustotal.com/gui/file/9ff2c99f91b65622d009909079e5b49e06afd0c149d2b23daad3a370c5b9f174) |
-| ui\DragShiftUI.exe (окна редактора) | `e56e56ca9b9ea8b21427098bac17c659b740c943f36e24e4860466f2792b35db` | [2/70](https://www.virustotal.com/gui/file/e56e56ca9b9ea8b21427098bac17c659b740c943f36e24e4860466f2792b35db) |
+| DragShift-2.1.0-Setup.exe | `b473c351223a37444704eb16c42b6ca6a9500fb3195ad4158db2a437e422a5ce` | [0/66](https://www.virustotal.com/gui/file/b473c351223a37444704eb16c42b6ca6a9500fb3195ad4158db2a437e422a5ce) |
+| DragShift-2.1.0-Portable.zip | `7047a4e6262199d064ca7c1d8727260596af1b484c4f07639dfddb5fb9fdffd8` | [1/65](https://www.virustotal.com/gui/file/7047a4e6262199d064ca7c1d8727260596af1b484c4f07639dfddb5fb9fdffd8) |
+| DragShift.exe (демон) | `7c37aa12312e4bd8af44c8b167536e97e7c29e1428225af83829a04915c6cbcb` | [1/70](https://www.virustotal.com/gui/file/7c37aa12312e4bd8af44c8b167536e97e7c29e1428225af83829a04915c6cbcb) |
+| ui\DragShiftUI.exe (окна редактора) | `7d149546d5ca2c0aaed7afb3af63fc4284c0e8245e9ee1c52186ece7b654ef64` | [2/71](https://www.virustotal.com/gui/file/7d149546d5ca2c0aaed7afb3af63fc4284c0e8245e9ee1c52186ece7b654ef64) |
 | ffmpeg\ffmpeg.exe 8.0.1 | `5af82a0d4fe2b9eae211b967332ea97edfc51c6b328ca35b827e73eac560dc0d` | [0/69](https://www.virustotal.com/gui/file/5af82a0d4fe2b9eae211b967332ea97edfc51c6b328ca35b827e73eac560dc0d) |
+
+![VirusTotal: установщик](docs/img/vt-setup.jpg)
 
 ![VirusTotal: DragShift.exe](docs/img/vt-daemon.jpg)
 
@@ -112,9 +118,14 @@ powershell -ExecutionPolicy Bypass -File packaging\build.ps1 -Python .venv\Scrip
 
 **Start dragging any file, press Shift, drop it on a slice of the menu.** Convert and edit images, PDFs, documents, **audio and video** right from File Explorer.
 
-**Download** from the [latest release](../../releases/latest): `DragShift-2.0.0-Setup.exe` (per-user, no admin, adds a right-click **DragShift…** entry and Send To) or `DragShift-2.0.0-Portable.zip`. Windows 10/11 x64, ffmpeg included.
+**Download** from the [latest release](../../releases/latest): `DragShift-2.1.0-Setup.exe` (per-user, no admin, adds a right-click **DragShift…** entry and Send To) or `DragShift-2.1.0-Portable.zip`. Windows 10/11 x64, ffmpeg included.
 
 **Try it:** install, drag an mp3 or a video, press Shift while dragging, drop it on MP3, OPUS or **25 MB**. Each Shift press while dragging switches the ring (Convert, Tools, Compress). **Tools → Trim** opens a waveform editor with fades and preview playback.
+
+**New in 2.1**
+- Excel and PowerPoint (xlsx, xlsm, xls, pptx, ppt) to PDF. Microsoft Office or LibreOffice does it when installed; without them DragShift draws the sheets and slides itself, with the presentation's own fonts.
+- Save a screenshot from the clipboard (Win+Shift+S, Print Screen, copied pictures) in any image format from the tray icon: straight to `Pictures\Screenshots`, or to a folder you pick (remembered for next time).
+- PDFs made from documents use real installed fonts (Cyrillic italics look right, copied text keeps its spaces), and Word documents convert through Word when it is installed.
 
 **What's in 2.0**
 - Audio: MP3, M4A, WAV, FLAC, OGG, OPUS, AIFF, WMA, ALAC; bitrate presets; trim with waveform, fades and listening; speed with pitch kept.
@@ -135,7 +146,7 @@ powershell -ExecutionPolicy Bypass -File packaging\build.ps1 -Python .venv\Scrip
 
 On disk: 270 MB installed (daemon 1 MB, editor windows 174 MB, ffmpeg 95 MB); the installer is 69.5 MB, the portable zip 104 MB.
 
-**VirusTotal:** Setup.exe 0 detections, Portable.zip 1/65, DragShift.exe 1/71, DragShiftUI.exe 2/70, ffmpeg.exe 0/69. Links and SHA-256 are in the table above. Setup is clean; the hits on the binaries are false positives: SecureAge flags almost any new unsigned exe, and Zillya calls the stock PyInstaller bootloader of the editor windows `Trojan.Stealer` (and finds it again inside the zip). Defender, Kaspersky, ESET, Bitdefender and 60+ other engines report nothing.
+**VirusTotal (2.1.0):** Setup.exe 0/66, Portable.zip 1/65, DragShift.exe 1/70, DragShiftUI.exe 2/71, ffmpeg.exe 0/69. Links and SHA-256 are in the table above. Setup is clean; the hits on the binaries are false positives: SecureAge flags almost any new unsigned exe, and Zillya calls the stock PyInstaller bootloader of the editor windows `Trojan.Stealer` (and finds it again inside the zip). Defender, Kaspersky, ESET, Bitdefender and 60+ other engines report nothing.
 
 **Build:** Rust stable, Python 3.10+, Inno Setup 6, then `packaging\build.ps1` (see above). `DragShift.exe --selftest` runs 33 audio/video scenarios.
 

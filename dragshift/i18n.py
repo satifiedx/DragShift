@@ -188,6 +188,15 @@ RU: dict[str, str] = {
         "Это не похоже на картинку, которую DragShift умеет читать.",
     "The file was moved or deleted.": "Файл перенесли или удалили.",
     "Not enough memory for a file this big.": "Не хватает памяти для такого большого файла.",
+    "Old {} files need Microsoft Office or LibreOffice to convert.":
+        "Старые файлы {} конвертируются только через Microsoft Office или LibreOffice.",
+    "This file is damaged or isn't really {}.": "Файл повреждён или это не {}.",
+    "This spreadsheet is empty.": "В таблице пусто.",
+    "This presentation has no slides.": "В презентации нет слайдов.",
+    "There's no picture on the clipboard. Take a screenshot with Win+Shift+S first.":
+        "В буфере нет картинки. Сначала сделайте скриншот через Win+Shift+S.",
+    "Screenshot": "Скриншот",
+    "Screenshot saved": "Скриншот сохранён",
 }
 
 
@@ -284,7 +293,7 @@ UK: dict[str, str] = {
     "Open the menu with": "Відкривати меню клавішею",
     "…pressed while you’re dragging a file": "…натиснутою, поки тягнете файл",
     "Save results": "Куди зберігати", "Next to the original": "Поруч з оригіналом",
-    "In a “DragShift” subfolder": "У підтеку «DragShift»", "JPG / WebP quality": "Якість JPG / WebP",
+    "In a “DragShift” subfolder": "У підпапку «DragShift»", "JPG / WebP quality": "Якість JPG / WebP",
     "PDF → image resolution": "PDF → картинка, роздільність", "150 dpi · small": "150 dpi · легкі",
     "200 dpi · balanced": "200 dpi · баланс", "300 dpi · print": "300 dpi · для друку",
     "Video": "Відео", "Use the graphics card when it helps": "Використовувати відеокарту, коли це швидше",
@@ -326,11 +335,20 @@ UK: dict[str, str] = {
     "This PDF is password-protected. Remove the password first.": "Цей PDF під паролем. Спершу зніміть пароль.",
     "No images found in this PDF.": "У цьому PDF немає картинок.",
     "No permission to write next to this file. Try a folder you own, or set Settings → Save results → subfolder.":
-        "Немає прав писати поруч із цим файлом. Візьміть свою теку або ввімкніть Налаштування → Куди зберігати → підтека.",
+        "Немає прав писати поруч із цим файлом. Візьміть свою папку або ввімкніть Налаштування → Куди зберігати → підпапка.",
     "This file doesn't look like an image DragShift can read.":
         "Це не схоже на картинку, яку DragShift уміє читати.",
     "The file was moved or deleted.": "Файл перенесли або видалили.",
     "Not enough memory for a file this big.": "Не вистачає пам'яті для такого великого файлу.",
+    "Old {} files need Microsoft Office or LibreOffice to convert.":
+        "Старі файли {} конвертуються лише через Microsoft Office або LibreOffice.",
+    "This file is damaged or isn't really {}.": "Файл пошкоджений або це не {}.",
+    "This spreadsheet is empty.": "У таблиці порожньо.",
+    "This presentation has no slides.": "У презентації немає слайдів.",
+    "There's no picture on the clipboard. Take a screenshot with Win+Shift+S first.":
+        "У буфері немає картинки. Спочатку зробіть скриншот через Win+Shift+S.",
+    "Screenshot": "Скриншот",
+    "Screenshot saved": "Скриншот збережено",
 }
 
 TABLES = {"ru": RU, "uk": UK}

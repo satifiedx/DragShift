@@ -9,6 +9,7 @@ pub enum Cat {
     Image,
     Pdf,
     Docx,
+    Office,
     Text,
     Video,
     Audio,
@@ -20,6 +21,7 @@ impl Cat {
             Cat::Image => "image",
             Cat::Pdf => "pdf",
             Cat::Docx => "docx",
+            Cat::Office => "office",
             Cat::Text => "text",
             Cat::Video => "video",
             Cat::Audio => "audio",
@@ -35,6 +37,7 @@ pub const VIDEO_EXTS: &[&str] = &["mp4", "m4v", "mov", "mkv", "webm", "avi", "wm
 pub const AUDIO_EXTS: &[&str] = &["mp3", "m4a", "aac", "wav", "flac", "ogg", "oga", "opus", "aiff", "aif", "wma",
                                   "amr", "ac3", "mka", "caf", "m4r", "alac", "ape", "wv"];
 const IMAGE_EXTS: &[&str] = &["png", "jpg", "jpeg", "webp", "heic", "heif", "tif", "tiff", "avif", "bmp", "gif", "ico"];
+const OFFICE_EXTS: &[&str] = &["xlsx", "xlsm", "xls", "pptx", "ppt"];
 const TEXT_EXTS: &[&str] = &["txt", "md", "csv", "log", "json", "xml", "html", "htm"];
 
 pub fn category(p: &Path) -> Option<Cat> {
@@ -46,6 +49,8 @@ pub fn category(p: &Path) -> Option<Cat> {
         Some(Cat::Pdf)
     } else if e == "docx" {
         Some(Cat::Docx)
+    } else if OFFICE_EXTS.contains(&e) {
+        Some(Cat::Office)
     } else if TEXT_EXTS.contains(&e) {
         Some(Cat::Text)
     } else if VIDEO_EXTS.contains(&e) {
@@ -80,14 +85,14 @@ pub struct Ring {
     pub items: Vec<Item>,
 }
 
-const IMAGE_TARGETS: &[&str] = &["PNG", "JPG", "WEBP", "HEIC", "TIFF", "AVIF", "BMP", "PDF", "ICO", "GIF"];
+pub const IMAGE_TARGETS: &[&str] = &["PNG", "JPG", "WEBP", "HEIC", "TIFF", "AVIF", "BMP", "PDF", "ICO", "GIF"];
 const PDF_TARGETS: &[&str] = &["JPG", "PNG", "DOCX", "TXT"];
 pub const VIDEO_TARGETS: &[&str] = &["MP4", "MKV", "WEBM", "MOV", "AVI", "GIF", "MP3", "M4A", "WAV"];
 pub const AUDIO_TARGETS: &[&str] = &["MP3", "M4A", "WAV", "FLAC", "OGG", "OPUS", "AIFF", "WMA", "ALAC"];
 const SIZES_MB: &[u64] = &[10, 25, 50, 100];
 const BITRATES: &[u32] = &[320, 256, 192, 128, 96, 64];
 
-fn format_hint(f: &str) -> &'static str {
+pub fn format_hint(f: &str) -> &'static str {
     match f {
         "JPG" => t("Small, universal"),
         "PNG" => t("Lossless · transparency"),
@@ -188,6 +193,7 @@ pub fn rings_for(paths: &[PathBuf]) -> (Vec<Ring>, Option<Cat>) {
             });
         }
         Cat::Docx => rings.push(convert_ring(&["PDF", "TXT"], &ext, None)),
+        Cat::Office => rings.push(convert_ring(&["PDF"], &ext, None)),
         Cat::Text => rings.push(convert_ring(&["PDF", "DOCX"], &ext, None)),
         Cat::Video => {
             rings.push(convert_ring(VIDEO_TARGETS, &ext, None));
