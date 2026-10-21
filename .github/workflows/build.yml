@@ -94,6 +94,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           $tag = "${{ github.ref_name }}"
+          gh release view $tag *> $null
+          if ($LASTEXITCODE -eq 0) { "release $tag already exists, keeping it"; exit 0 }
           $notes = if (Test-Path docs\RELEASE_NOTES.md) { "docs\RELEASE_NOTES.md" } else { $null }
           $files = (Get-ChildItem dist\DragShift-*-Setup.exe, dist\DragShift-*-Portable.zip, dist\SHA256SUMS.txt).FullName
           if ($notes) { gh release create $tag @files --title "DragShift $($tag.TrimStart('v'))" --notes-file $notes }
