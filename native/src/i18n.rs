@@ -1,22 +1,27 @@
-//! English / Russian. The language follows Windows unless Settings pins one.
+//! English / Russian / Ukrainian. The language follows Windows unless Settings pins one.
 //! Strings are written in English in the code and looked up here.
 
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU8, Ordering};
 use std::sync::OnceLock;
 
-static LANG: AtomicU8 = AtomicU8::new(0); // 0 = not decided yet, 1 = en, 2 = ru
+static LANG: AtomicU8 = AtomicU8::new(0); // 0 = not decided yet, 1 = en, 2 = ru, 3 = uk
 
-fn system_is_russian() -> bool {
+fn system_lang() -> u8 {
     let id = unsafe { windows::Win32::Globalization::GetUserDefaultUILanguage() };
-    id & 0x3FF == 0x19
+    match id & 0x3FF {
+        0x19 => 2,
+        0x22 => 3,
+        _ => 1,
+    }
 }
 
 fn decide() -> u8 {
     match crate::settings::get().lang.as_str() {
         "ru" => 2,
+        "uk" => 3,
         "en" => 1,
-        _ => if system_is_russian() { 2 } else { 1 },
+        _ => system_lang(),
     }
 }
 
@@ -37,14 +42,20 @@ pub fn reload() {
 }
 
 pub fn code() -> &'static str {
-    if lang() == 2 { "ru" } else { "en" }
+    match lang() {
+        2 => "ru",
+        3 => "uk",
+        _ => "en",
+    }
 }
 
 pub fn t<'a>(s: &'a str) -> &'a str {
-    if lang() != 2 {
-        return s;
-    }
-    ru().get(s).copied().unwrap_or(s)
+    let table = match lang() {
+        2 => ru(),
+        3 => uk(),
+        _ => return s,
+    };
+    table.get(s).copied().unwrap_or(s)
 }
 
 /// `t` with "{}" placeholders filled in order.
@@ -65,6 +76,11 @@ pub fn tf(fmt: &str, args: &[&str]) -> String {
 fn ru() -> &'static HashMap<&'static str, &'static str> {
     static M: OnceLock<HashMap<&'static str, &'static str>> = OnceLock::new();
     M.get_or_init(|| RU.iter().copied().collect())
+}
+
+fn uk() -> &'static HashMap<&'static str, &'static str> {
+    static M: OnceLock<HashMap<&'static str, &'static str>> = OnceLock::new();
+    M.get_or_init(|| UK.iter().copied().collect())
 }
 
 pub const RU: &[(&str, &str)] = &[
@@ -260,12 +276,212 @@ pub const RU: &[(&str, &str)] = &[
     ("Choose files for DragShift", "Выбери файлы для DragShift"),
 ];
 
+pub const UK: &[(&str, &str)] = &[
+    // sizes
+    ("B", "Б"),
+    ("KB", "КБ"),
+    ("MB", "МБ"),
+    ("GB", "ГБ"),
+    // rings and menu
+    ("Convert", "Конвертація"),
+    ("Tools", "Інструменти"),
+    ("Compress", "Стиснути"),
+    ("Drop here", "Кидай сюди"),
+    ("Can't convert {}", "Не вмію {}"),
+    ("this file", "цей файл"),
+    ("Images · PDF · Word · Text · Video · Audio", "Фото · PDF · Word · Текст · Відео · Аудіо"),
+    ("{} files", "Файлів: {}"),
+    ("{} images → 1 PDF", "{} фото → 1 PDF"),
+    // format hints
+    ("Small, universal", "Легкий, відкривається всюди"),
+    ("Lossless · transparency", "Без втрат · прозорість"),
+    ("Smallest for web", "Найлегший для вебу"),
+    ("iPhone format", "Формат iPhone"),
+    ("Print · archival", "Друк · архів"),
+    ("Next-gen, tiny", "Новий, крихітний"),
+    ("Uncompressed", "Без стиснення"),
+    ("Document", "Документ"),
+    ("Windows icon", "Іконка Windows"),
+    ("Animated · legacy web", "Анімація · старий веб"),
+    ("Editable Word", "Редагований Word"),
+    ("Plain text", "Просто текст"),
+    ("Plays everywhere", "Грає всюди"),
+    ("Keeps every track", "Зберігає всі доріжки"),
+    ("Open web video", "Відкрите веб-відео"),
+    ("Apple · editing", "Apple · монтаж"),
+    ("Old players", "Старі плеєри"),
+    ("Universal audio", "Універсальний звук"),
+    ("AAC · Apple, phones", "AAC · Apple, телефони"),
+    ("Uncompressed audio", "Звук без стиснення"),
+    ("Lossless, smaller", "Без втрат, легший"),
+    ("Vorbis · games, web", "Vorbis · ігри, веб"),
+    ("Best quality per MB", "Найкраща якість на МБ"),
+    ("Uncompressed · Mac", "Без стиснення · Mac"),
+    ("Windows Media", "Windows Media"),
+    ("Lossless · Apple", "Без втрат · Apple"),
+    // tools
+    ("Resize", "Розмір"),
+    ("Crop", "Кадрувати"),
+    ("Edit", "Правка"),
+    ("Annotate", "Позначки"),
+    ("Redact", "Приховати"),
+    ("Add BG", "Тло"),
+    ("Metadata", "Метадані"),
+    ("Split", "Розділити"),
+    ("Rotate", "Повернути"),
+    ("Merge", "Об'єднати"),
+    ("Protect", "Пароль"),
+    ("Extract", "Картинки"),
+    ("Trim", "Обрізати"),
+    ("Speed", "Швидкість"),
+    ("Mute", "Без звуку"),
+    ("Audio", "Аудіо"),
+    ("Frame", "Стоп-кадр"),
+    ("Shrink file size", "Зменшити вагу"),
+    ("Change dimensions", "Змінити розміри"),
+    ("Trim to a ratio", "Обрізати під формат"),
+    ("Light · colour · rotate", "Світло · колір · поворот"),
+    ("Arrows · text · steps", "Стрілки · текст · кроки"),
+    ("Hide private info", "Сховати особисте"),
+    ("Gradient backdrop", "Градієнтне тло"),
+    ("View · remove GPS", "Дивитися · прибрати GPS"),
+    ("One PDF per page", "PDF на кожну сторінку"),
+    ("Turn pages 90°", "Повернути сторінки на 90°"),
+    ("Join into one PDF", "Зібрати в один PDF"),
+    ("Add a password", "Поставити пароль"),
+    ("Save embedded images", "Дістати картинки"),
+    ("Cut start and end", "Зрізати початок і кінець"),
+    ("Cut the frame", "Обрізати кадр"),
+    ("90° clockwise", "90° за годинниковою"),
+    ("Faster or slower", "Швидше або повільніше"),
+    ("Remove the sound", "Прибрати звук"),
+    ("Save the soundtrack", "Витягти звук"),
+    ("Snapshot as PNG", "Знімок у PNG"),
+    ("Waveform · fades", "Хвиля · згасання"),
+    ("Discord, email", "Discord, пошта"),
+    ("Email, messengers", "Пошта, месенджери"),
+    ("Messengers", "Месенджери"),
+    ("Uploads", "Завантаження"),
+    ("Half the size", "Удвічі легший"),
+    ("A quarter of the size", "Учетверо легший"),
+    ("Best MP3 quality", "Максимум для MP3"),
+    ("Near transparent", "Майже без втрат"),
+    ("Great for music", "Чудово для музики"),
+    ("Good · small", "Норм · легкий"),
+    ("Podcasts, voice", "Подкасти, голос"),
+    ("Voice, smallest", "Голос, найлегший"),
+    // working
+    ("Converting to {}…", "Конвертую в {}…"),
+    ("Compressing to {} MB…", "Стискаю до {} МБ…"),
+    ("Compressing…", "Стискаю…"),
+    ("Rotating…", "Повертаю…"),
+    ("Removing the sound…", "Прибираю звук…"),
+    ("Saving the soundtrack…", "Витягаю звук…"),
+    ("Saving a frame…", "Зберігаю кадр…"),
+    ("Trimming…", "Обрізаю…"),
+    ("Cropping…", "Кадрую…"),
+    ("Changing the speed…", "Змінюю швидкість…"),
+    ("Opening {}…", "Відкриваю «{}»…"),
+    ("Working…", "Працюю…"),
+    ("Cancelling…", "Скасовую…"),
+    ("File {} of {}", "Файл {} з {}"),
+    // results
+    ("Nothing was written", "Нічого не записалося"),
+    ("{} files → {}", "{} файлів → {}"),
+    ("Compressed", "Стиснуто"),
+    ("Compressed {} files", "Стиснуто файлів: {}"),
+    ("already well compressed", "уже добре стиснутий"),
+    ("{}% smaller", "на {}% легше"),
+    ("Rotated 90°", "Повернуто на 90°"),
+    ("Sound removed", "Звук прибрано"),
+    ("Soundtrack saved", "Звук збережено"),
+    ("Frame saved", "Кадр збережено"),
+    ("Trimmed", "Обрізано"),
+    ("Cropped", "Кадровано"),
+    ("Speed changed", "Швидкість змінено"),
+    ("Done", "Готово"),
+    ("Rotated", "Повернуто"),
+    ("Muted", "Без звуку"),
+    ("{} didn't work", "не вийшло: {}"),
+    ("Cancelled", "Скасовано"),
+    ("Nothing was changed.", "Нічого не змінилося."),
+    ("Couldn't finish", "Не вдалося"),
+    // toast buttons
+    ("Open", "Відкрити"),
+    ("Show in folder", "У теці"),
+    ("Undo", "Скасувати"),
+    ("Cancel", "Стоп"),
+    ("Undone", "Скасовано"),
+    ("Moved 1 file to the Recycle Bin", "1 файл пішов у кошик"),
+    ("Moved {} files to the Recycle Bin", "Файлів у кошику: {}"),
+    // errors
+    ("Video and audio need ffmpeg, and DragShift couldn't find it. Reinstall DragShift.",
+     "Для відео й аудіо потрібен ffmpeg, а DragShift його не знайшов. Перевстанови DragShift."),
+    ("ffmpeg is missing", "Немає ffmpeg"),
+    ("This file looks damaged, or it isn't a video or audio format DragShift can read.",
+     "Файл пошкоджений або це формат, який DragShift не читає."),
+    ("The file was moved or deleted.", "Файл перемістили або видалили."),
+    ("This copy of ffmpeg can't make {} (it has no {} encoder).", "Цей ffmpeg не вміє {} (немає кодувальника {})."),
+    ("The disk is full.", "Диск заповнений."),
+    ("No permission to write next to this file. Try a folder you own, or set Settings → Save results → subfolder.",
+     "Немає прав писати поруч із файлом. Візьми свою теку або ввімкни в налаштуваннях збереження в підтеку."),
+    ("ffmpeg couldn't process this file.", "ffmpeg не впорався з цим файлом."),
+    ("ffmpeg finished but didn't write anything.", "ffmpeg відпрацював, але нічого не записав."),
+    ("This file has no video, only sound.", "Тут немає відео, лише звук."),
+    ("This video has no sound.", "У цьому відео немає звуку."),
+    ("It's {}, already under {}.", "Тут {}, це й так менше {}."),
+    ("Nothing to do", "Нічого робити"),
+    ("It's already {} kbps. A higher bitrate would only make the file bigger, not better.",
+     "Тут і так {} kbps. Вищий бітрейт лише роздує файл, краще звучати не стане."),
+    ("This clip is {} long. GIFs work best under {} seconds, so trim it first.",
+     "Ролик довжиною {}. GIF норм до {} секунд, спершу обріж."),
+    ("DragShift can't tell how long this file is, so it can't aim for a size.",
+     "Незрозуміла довжина файлу, тому під розмір не стиснути."),
+    ("This video is too long to fit in {}. Trim it first or pick a bigger size.",
+     "Відео задовге для {}. Обріж або вибери більший розмір."),
+    ("Pick a start point before the end point.", "Початок має бути раніше за кінець."),
+    ("The crop area is outside the video.", "Рамка вилазить за кадр."),
+    ("Speed must be between 0.25× and 4×.", "Швидкість від 0.25× до 4×."),
+    ("Couldn't start the editor", "Редактор не запустився"),
+    ("Part of DragShift is missing. Reinstall DragShift.", "Бракує частини DragShift. Перевстанови його."),
+    ("The editor closed unexpectedly. Please try again.", "Редактор раптово закрився. Спробуй ще раз."),
+    // app and tray
+    ("DragShift is ready", "DragShift готовий"),
+    ("Start dragging any file, then press {}. The menu opens under the cursor.",
+     "Почни тягнути будь-який файл і натисни {}. Меню відкриється під курсором."),
+    ("DragShift is running", "DragShift працює"),
+    ("Drag a file and press {}. Settings are in the tray icon.", "Тягни файл і тисни {}. Налаштування в іконці в треї."),
+    ("DragShift is paused", "DragShift на паузі"),
+    ("Turn it back on from the tray icon.", "Увімкнути назад можна в треї."),
+    ("DragShift is on", "DragShift увімкнено"),
+    ("Drag a file and press {}.", "Тягни файл і тисни {}."),
+    ("How to use DragShift", "Як користуватися"),
+    ("Start dragging a file, press {} and drop it on a petal. Press {} again for more options.",
+     "Почни тягнути файл, натисни {} і кинь на пелюстку. Ще раз {} для інших дій."),
+    ("Enabled", "Увімкнено"),
+    ("Open a file…", "Відкрити файл…"),
+    ("Settings…", "Налаштування…"),
+    ("How to use", "Як користуватися"),
+    ("About DragShift", "Про DragShift"),
+    ("Quit", "Вихід"),
+    ("paused", "пауза"),
+    ("All supported files", "Усі файли"),
+    ("Choose files for DragShift", "Вибери файли для DragShift"),
+];
+
 #[cfg(test)]
 mod tests {
     #[test]
     fn placeholders_match() {
-        for (en, ru) in super::RU {
-            assert_eq!(en.matches("{}").count(), ru.matches("{}").count(), "{en}");
+        for (en, tr) in super::RU.iter().chain(super::UK) {
+            assert_eq!(en.matches("{}").count(), tr.matches("{}").count(), "{en}");
         }
+    }
+
+    #[test]
+    fn ukrainian_covers_russian() {
+        let ru: std::collections::BTreeSet<_> = super::RU.iter().map(|p| p.0).collect();
+        let uk: std::collections::BTreeSet<_> = super::UK.iter().map(|p| p.0).collect();
+        assert_eq!(ru, uk);
     }
 }

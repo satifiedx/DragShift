@@ -12,7 +12,7 @@ pub struct Settings {
     pub jpg_quality: u32,
     pub pdf_dpi: u32,
     pub welcomed: bool,
-    pub lang: String,        // auto | en | ru
+    pub lang: String,        // auto | en | ru | uk
     pub theme: String,       // auto | dark | light
     pub gpu: bool,           // use NVENC / Quick Sync / AMF when the PC has them
     pub ui_idle_seconds: u32, // how long the editor process stays warm after its last window

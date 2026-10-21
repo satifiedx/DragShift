@@ -1,4 +1,4 @@
-"""English / Russian for the editor windows. Strings are English in the code; tr() looks them up.
+"""English / Russian / Ukrainian for the editor windows. Strings are English in the code; tr() looks them up.
 
 tr("{} files", 3) fills "{}" placeholders in order after translating."""
 from __future__ import annotations
@@ -9,15 +9,18 @@ import sys
 _lang: str | None = None
 
 
-def _system_is_russian() -> bool:
+def _system_lang() -> str:
+    """ru / uk when Windows (or the locale elsewhere) is in that language, else en."""
     if sys.platform != "win32":
         import locale
-        return (locale.getlocale()[0] or "").lower().startswith("ru")
+        loc = (locale.getlocale()[0] or "").lower()
+        return "ru" if loc.startswith("ru") else "uk" if loc.startswith(("uk", "ukrainian")) else "en"
     try:
         import ctypes
-        return ctypes.windll.kernel32.GetUserDefaultUILanguage() & 0x3FF == 0x19
+        primary = ctypes.windll.kernel32.GetUserDefaultUILanguage() & 0x3FF
     except Exception:
-        return False
+        return "en"
+    return {0x19: "ru", 0x22: "uk"}.get(primary, "en")
 
 
 def lang() -> str:
@@ -25,11 +28,11 @@ def lang() -> str:
     if _lang is None:
         from .settings import Settings
         pick = Settings().get("lang")
-        if pick in ("en", "ru"):
+        if pick in LANGS:
             _lang = pick
         else:
             env = os.environ.get("DRAGSHIFT_LANG")
-            _lang = env if env in ("en", "ru") else ("ru" if _system_is_russian() else "en")
+            _lang = env if env in LANGS else _system_lang()
     return _lang
 
 
@@ -39,7 +42,8 @@ def reload():
 
 
 def tr(s: str, *args) -> str:
-    out = RU.get(s, s) if lang() == "ru" else s
+    table = TABLES.get(lang())
+    out = table.get(s, s) if table else s
     for a in args:
         out = out.replace("{}", str(a), 1)
     return out
@@ -185,4 +189,150 @@ RU: dict[str, str] = {
     "The file was moved or deleted.": "Файл перенесли или удалили.",
     "Not enough memory for a file this big.": "Не хватает памяти для такого большого файла.",
 }
+
+
+UK: dict[str, str] = {
+    # ---- common
+    "Cancel": "Скасувати", "Apply": "Застосувати", "Save": "Зберегти", "Done": "Готово", "Copy": "Копіювати",
+    "Undo": "Скасувати", "Redo": "Повернути", "Reset": "Скинути", "Show": "Показати", "Confirm": "Повторіть",
+    "Close (Esc)": "Закрити (Esc)", "Working…": "Працюю…", "Couldn't open {}": "Не відкрилося: {}",
+    "{} files": "Файлів: {}", "{} pages": "Сторінок: {}", "1 page": "1 сторінка", "s": "с",
+    "B": "Б", "KB": "КБ", "MB": "МБ", "GB": "ГБ", "px": "пікс", "W": "Ш", "H": "В",
+    "Size": "Розмір", "Quality": "Якість", "Background": "Тло", "Settings": "Налаштування",
+    "Original": "Оригінал", "Free": "Вільно", "Auto": "Авто", "Exact": "Точно",
+    # ---- tool names (window titles, menu)
+    "Crop Image": "Обрізання", "Crop": "Обрізати", "Add BG": "Тло", "Annotate": "Позначки", "Redact": "Приховати",
+    "Edit": "Правка", "Metadata": "Метадані", "Compress": "Стиснути", "Resize": "Розмір",
+    "Password-protect PDF": "Пароль на PDF", "Protect": "Поставити пароль", "Split": "Розділити",
+    "Rotate": "Повернути", "Merge": "Об'єднати", "Extract": "Картинки",
+    "Trim": "Обрізати", "Crop Video": "Обрізання кадру", "Speed": "Швидкість",
+    # ---- working
+    "Cropping…": "Обрізаю…", "Adding background…": "Додаю тло…", "Saving annotations…": "Зберігаю позначки…",
+    "Redacting…": "Зафарбовую…", "Applying edits…": "Застосовую правки…", "Removing metadata…": "Прибираю метадані…",
+    "Removing location…": "Прибираю геолокацію…", "Compressing…": "Стискаю…", "Resizing…": "Змінюю розмір…",
+    "Encrypting…": "Шифрую…",
+    # ---- crop
+    "Aspect ratio": "Пропорції", "Double-click the image to reset": "Подвійний клік по картинці скидає рамку",
+    "rotated {}°": "повернуто на {}°", "flipped": "віддзеркалено",
+    # ---- add background
+    "Padding": "Відступ", "Corners": "Кути", "Shadow": "Тінь", "Angle": "Кут", "Custom colour": "Свій колір",
+    "Background colour": "Колір тла", "Copy the result to the clipboard": "Скопіювати результат у буфер",
+    "Save with Background": "Зберегти з тлом", "Output  {} px  ·  PNG": "Результат  {} пікс  ·  PNG",
+    "Copied ✓": "Скопійовано ✓",
+    "Sunset": "Захід", "Prism": "Призма", "Peach": "Персик", "Aurora": "Сяйво", "Mint": "М'ята",
+    "Ocean": "Океан", "Dusk": "Сутінки", "Lemon": "Лимон", "Night": "Ніч", "Rose": "Троянда",
+    # ---- annotate
+    "➜ Arrow": "➜ Стрілка", "▢ Box": "▢ Рамка", "◯ Circle": "◯ Коло", "✎ Pen": "✎ Олівець",
+    "▬ Marker": "▬ Маркер", "T Text": "T Текст", "① Step": "① Крок", "Type, then Enter": "Пишіть, потім Enter",
+    "arrow": "стрілка", "box": "рамка", "circle": "коло", "stroke": "лінія", "highlight": "маркер",
+    "label": "напис", "step": "крок",
+    # ---- redact
+    "Drag over anything you want hidden. It's burned into the pixels — it can't be undone in the copy.":
+        "Виділіть усе, що треба приховати. Це впікається в пікселі, у копії вже не скасувати.",
+    "Black box": "Чорна плашка", "Pixelate": "Пікселі", "Blur": "Розмиття", "{} areas": "Областей: {}",
+    "{} hidden": "приховано: {}", "black boxes": "чорними плашками", "pixelated": "пікселями", "blurred": "розмиттям",
+    # ---- edit
+    "✦ Auto": "✦ Авто", "Automatic light and colour": "Автоматичне світло й колір", "B&&W": "Ч/Б",
+    "Hold to compare": "Затисніть, щоб порівняти", "Rotate 90°": "Повернути на 90°",
+    "Brightness": "Яскравість", "Contrast": "Контраст", "Saturation": "Насиченість", "Warmth": "Теплота",
+    "Sharpness": "Різкість",
+    # ---- metadata
+    "Show all {} fields": "Показати всі поля ({})", "Remove all metadata": "Видалити всі метадані",
+    "Remove location only": "Прибрати лише геолокацію", "removed {} fields": "видалено полів: {}",
+    " incl. GPS location": ", включно з GPS", "GPS removed, camera info kept": "GPS прибрано, дані камери лишилися",
+    "No personal metadata found.": "Особистих метаданих не знайшлося.",
+    "⚠  This photo reveals where it was taken.": "⚠  З цього фото видно, де його знято.",
+    "Field": "Поле", "Value": "Значення", "Open map": "Відкрити карту",
+    "Camera": "Камера", "Taken": "Знято", "Software": "Програма", "Exposure": "Витримка",
+    "Aperture": "Діафрагма", "ISO": "ISO", "Location": "Місце",
+    "title": "Назва", "author": "Автор", "creator": "Створено в", "producer": "PDF-рушій", "Pages": "Сторінки",
+    # ---- compress
+    "Target size": "Потрібна вага", "Make each file under": "Кожен файл менший за",
+    "Convert to WebP (usually the smallest)": "Перевести у WebP (зазвичай найлегший)",
+    "Original size": "Початковий розмір", "Max 3840 px": "До 3840 пікс", "Max 2560 px": "До 2560 пікс",
+    "Max 1920 px": "До 1920 пікс", "Max 1280 px": "До 1280 пікс", "Max 800 px": "До 800 пікс",
+    "Compressed": "Стиснуто", "Compress {} files": "Стиснути файли ({})", "quality ≈ {}": "якість ≈ {}",
+    "≈ {}% smaller": "≈ на {}% легше", "target {}": "ціль {}", "quality {}": "якість {}",
+    "Already well compressed — try a smaller size or WebP": "Уже непогано стиснуто, спробуйте менший розмір або WebP",
+    # ---- resize
+    "Presets — percent or longest side in px": "Пресети: відсотки або довга сторона в пікселях",
+    "Exact size": "Точний розмір", "Keep proportions": "Зберігати пропорції",
+    "Resize {} files": "Змінити розмір файлів ({})",
+    # ---- protect
+    "AES-256 encryption. Anyone opening the PDF will need this password.":
+        "Шифрування AES-256. Без цього пароля PDF не відкрити.",
+    "Password": "Пароль", "Use at least 4 characters.": "Мінімум 4 символи.",
+    "Passwords don't match yet.": "Паролі поки не збігаються.", "Looks good · {} password": "Норм · пароль {}",
+    "strong": "надійний", "okay": "середній", "weak": "слабкий",
+    # ---- video / audio editors
+    "Fade in": "Наростання", "Fade out": "Згасання", "From": "З", "to": "до",
+    "[ Start here": "[ Початок тут", "End here ]": "Кінець тут ]",
+    "Set the start to the playhead (I)": "Початок там, де курсор (I)",
+    "Set the end to the playhead (O)": "Кінець там, де курсор (O)",
+    "▶ Play": "▶ Слухати", "■ Stop": "■ Стоп", "Listen from the playhead (Space)": "Слухати від курсора (Пробіл)",
+    "Fast cut: no re-encoding, but it starts at the nearest keyframe":
+        "Швидке обрізання: без перекодування, але почнеться з найближчого ключового кадру",
+    "Save this frame": "Зберегти кадр", "Save the frame under the playhead as PNG": "Зберегти кадр під курсором у PNG",
+    "Keep the pitch (voices don't sound like chipmunks)": "Зберегти тон (голоси не як у бурундуків)",
+    "Change speed": "Змінити швидкість", "Preview at": "Кадр на", "{}  →  {}": "{}  →  {}",
+    "This file looks damaged, or it isn't a video or audio format DragShift can read.":
+        "Файл пошкоджений або це не той формат відео/аудіо, який DragShift уміє читати.",
+    "DragShift can't tell how long this file is.": "DragShift не може зрозуміти тривалість цього файлу.",
+    "This file has no video, only sound.": "У цьому файлі немає відео, лише звук.",
+    # ---- settings / welcome
+    "Language": "Мова", "Same as Windows": "Як у Windows", "Theme": "Тема", "Dark": "Темна", "Light": "Світла",
+    "Open the menu with": "Відкривати меню клавішею",
+    "…pressed while you’re dragging a file": "…натиснутою, поки тягнете файл",
+    "Save results": "Куди зберігати", "Next to the original": "Поруч з оригіналом",
+    "In a “DragShift” subfolder": "У підтеку «DragShift»", "JPG / WebP quality": "Якість JPG / WebP",
+    "PDF → image resolution": "PDF → картинка, роздільність", "150 dpi · small": "150 dpi · легкі",
+    "200 dpi · balanced": "200 dpi · баланс", "300 dpi · print": "300 dpi · для друку",
+    "Video": "Відео", "Use the graphics card when it helps": "Використовувати відеокарту, коли це швидше",
+    "NVIDIA NVENC, Intel Quick Sync or AMD AMF: several times faster video compression. DragShift checks that "
+    "it works and falls back to the CPU.":
+        "NVIDIA NVENC, Intel Quick Sync або AMD AMF: відео стискається в рази швидше. DragShift сам перевірить, "
+        "що все працює, інакше візьме процесор.",
+    "DragShift {}  ·  originals are never modified": "DragShift {}  ·  оригінали ніколи не змінюються",
+    "Quit DragShift": "Вийти з DragShift",
+    "The new language applies to menus and windows opened from now on.":
+        "Нова мова застосується до меню й вікон, які відкриються далі.",
+    "Welcome to DragShift": "Ласкаво просимо до DragShift", "Got it": "Зрозуміло",
+    "Start dragging any file": "Почніть тягнути будь-який файл", "Press {}": "Натисніть {}",
+    "the menu opens right under your cursor": "меню відкриється просто під курсором",
+    "Drop it on a slice": "Киньте на потрібний сектор",
+    "the result is saved next to the original": "результат збережеться поруч з оригіналом",
+    "Tap {} again": "Натисніть {} ще раз",
+    "to switch between Convert and Tools": "щоб перемикатися між Конвертером та Інструментами",
+    "Start DragShift with Windows": "Запускати DragShift разом з Windows", "Start with Windows": "Запуск з Windows",
+    "Open DragShift at login": "Відкривати DragShift під час входу", "Open at login": "Відкривати під час входу",
+    "in Finder or on the desktop": "у Finder або на робочому столі",
+    "in your file manager (Thunar, Nautilus…)": "у файловому менеджері (Thunar, Nautilus…)",
+    "in File Explorer or on the desktop": "у Провіднику або на робочому столі",
+    # ---- results
+    "same size": "та сама вага", "{}% smaller": "на {}% легше", "{}% larger": "на {}% важче",
+    "{} files → 1 {}": "{} файлів → 1 {}", "{} files → {}": "{} файлів → {}", "Compressed {} files": "Стиснуто файлів: {}",
+    "already well compressed": "уже добре стиснутий", "Background added": "Тло додано", "Annotated": "Позначки додано",
+    "Redacted": "Приховано", "Metadata removed": "Метадані видалено", "Split into {} PDFs": "Розділено на {} PDF",
+    "Merged {} PDFs": "Об'єднано PDF: {}", "Rotated 90°": "Повернуто на 90°", "Password protected": "Пароль поставлено",
+    "Extracted 1 image": "Дістано 1 картинку", "Extracted {} images": "Дістано картинок: {}",
+    "Nothing was written": "Нічого не записалося",
+    "{} pages → {} {}s": "Сторінок: {} → {} {}", "{}: {} images": "{}: {} картинок",
+    "burned into pixels": "впечено в пікселі", "private copy": "приватна копія", "encrypted": "зашифровано",
+    "Cropped": "Обрізано", "Resized": "Розмір змінено", "Edited": "Відредаговано",
+    # ---- file name suffixes
+    "Combined": "Разом", "Merged": "Об'єднано", "Protected": "З паролем", "Rotated": "Повернуто",
+    "Clean": "Чистий", "No Location": "Без геолокації", "With Background": "З тлом", "page {}": "стор. {}",
+    # ---- errors
+    "This PDF is password-protected. Remove the password first.": "Цей PDF під паролем. Спершу зніміть пароль.",
+    "No images found in this PDF.": "У цьому PDF немає картинок.",
+    "No permission to write next to this file. Try a folder you own, or set Settings → Save results → subfolder.":
+        "Немає прав писати поруч із цим файлом. Візьміть свою теку або ввімкніть Налаштування → Куди зберігати → підтека.",
+    "This file doesn't look like an image DragShift can read.":
+        "Це не схоже на картинку, яку DragShift уміє читати.",
+    "The file was moved or deleted.": "Файл перенесли або видалили.",
+    "Not enough memory for a file this big.": "Не вистачає пам'яті для такого великого файлу.",
+}
+
+TABLES = {"ru": RU, "uk": UK}
+LANGS = ("en", "ru", "uk")
 # ---- end table

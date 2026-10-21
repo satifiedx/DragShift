@@ -139,7 +139,7 @@ TRIGGERS = ([("shift", "Shift ⇧"), ("ctrl", "Control ⌃"), ("alt", "Option �
             else [("shift", "Shift"), ("ctrl", "Ctrl"), ("alt", "Alt")])
 OUTPUTS = [("next", "Next to the original"), ("folder", "In a “DragShift” subfolder")]
 DPIS = [(150, "150 dpi · small"), (200, "200 dpi · balanced"), (300, "300 dpi · print")]
-LANGS = [("auto", "Same as Windows"), ("en", "English"), ("ru", "Русский")]
+LANGS = [("auto", "Same as Windows"), ("en", "English"), ("ru", "Русский"), ("uk", "Українська")]
 THEMES = [("auto", "Same as Windows"), ("dark", "Dark"), ("light", "Light")]
 
 

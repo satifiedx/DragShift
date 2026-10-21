@@ -35,16 +35,21 @@ MinVersion=10.0
 [Languages]
 Name: "en"; MessagesFile: "compiler:Default.isl"
 Name: "ru"; MessagesFile: "compiler:Languages\Russian.isl"
+Name: "uk"; MessagesFile: "compiler:Languages\Ukrainian.isl"
 
 [CustomMessages]
 en.Autostart=Start DragShift when I sign in to Windows
 ru.Autostart=Запускать DragShift при входе в Windows
+uk.Autostart=Запускати DragShift під час входу в Windows
 en.ContextMenu=Add "DragShift…" to the right-click menu for files
 ru.ContextMenu=Добавить «DragShift…» в контекстное меню файлов
+uk.ContextMenu=Додати «DragShift…» у контекстне меню файлів
 en.Desktop=Create a desktop shortcut
 ru.Desktop=Создать ярлык на рабочем столе
+uk.Desktop=Створити ярлик на робочому столі
 en.LaunchNow=Launch DragShift now
 ru.LaunchNow=Запустить DragShift сейчас
+uk.LaunchNow=Запустити DragShift зараз
 
 [Tasks]
 Name: "autostart"; Description: "{cm:Autostart}"; Flags: checkedonce
