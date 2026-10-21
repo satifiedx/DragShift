@@ -5,20 +5,21 @@
 
 mod actions;
 mod app;
-mod capture;
 mod gfx;
 mod hooks;
 mod i18n;
 mod jobs;
 mod layered;
-mod liquid;
 mod media;
 mod menu;
 mod selftest;
 mod settings;
+mod shape;
 mod toast;
 mod tray;
+mod theme;
 mod util;
+mod vsync;
 mod worker;
 
 use std::path::PathBuf;

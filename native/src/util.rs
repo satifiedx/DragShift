@@ -223,6 +223,7 @@ pub fn resolve_shortcut(p: &Path) -> PathBuf {
 
 /// Hand the pages we no longer touch back to Windows (called when going idle).
 pub fn trim_working_set() {
+    crate::gfx::forget_glyphs();
     unsafe {
         use windows::Win32::System::ProcessStatus::EmptyWorkingSet;
         use windows::Win32::System::Threading::GetCurrentProcess;

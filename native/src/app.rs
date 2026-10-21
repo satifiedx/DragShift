@@ -10,6 +10,7 @@ use crate::menu::{Activation, Menu, WM_MENU_ACTIVATE, WM_MENU_RENDERED};
 use crate::settings;
 use crate::toast::{Outcome, Thumb, Toasts, WM_TOAST_THUMB};
 use crate::util::{self, wide};
+use crate::vsync::{self, WM_FRAME};
 use crate::worker::{Worker, WM_WORKER_EVENT, WM_WORKER_EXIT};
 use serde_json::{json, Value};
 use std::cell::RefCell;
@@ -124,6 +125,7 @@ pub fn run(files: Vec<PathBuf>, quiet: bool, settings_now: bool, action: Option<
         APP.with(|a| *a.borrow_mut() = Some(app));
         crate::tray::add(hwnd, WM_TRAY);
         hooks::start(hwnd);
+        vsync::start(hwnd);
 
         if settings_now {
             open_settings();
@@ -523,6 +525,18 @@ unsafe extern "system" fn main_proc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM
                 }
             });
         }
+        WM_FRAME => {
+            vsync::handled();
+            with_app(|a| {
+                a.menu.on_frame();
+                let cards = a.toasts.on_frame();
+                if a.menu.visible {
+                    vsync::run(true, a.menu.mon);
+                } else {
+                    vsync::run(cards, a.toasts.monitor());
+                }
+            });
+        }
         WM_TRIGGER_TOGGLE => {
             with_app(|a| a.menu.trigger_toggle());
         }
@@ -571,7 +585,10 @@ unsafe extern "system" fn main_proc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM
         WM_TIMER => match wp.0 {
             TIMER_TRIM => {
                 let _ = KillTimer(hwnd, TIMER_TRIM);
-                let idle = with_app(|a| !a.menu.visible && a.toasts.cards.is_empty()).unwrap_or(false);
+                let idle = with_app(|a| {
+                    a.menu.forget();
+                    !a.menu.visible && a.toasts.cards.is_empty()
+                }).unwrap_or(false);
                 if idle {
                     util::trim_working_set();
                 }

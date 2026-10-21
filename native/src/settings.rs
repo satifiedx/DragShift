@@ -13,6 +13,7 @@ pub struct Settings {
     pub pdf_dpi: u32,
     pub welcomed: bool,
     pub lang: String,        // auto | en | ru
+    pub theme: String,       // auto | dark | light
     pub gpu: bool,           // use NVENC / Quick Sync / AMF when the PC has them
     pub ui_idle_seconds: u32, // how long the editor process stays warm after its last window
     pub enabled: bool,
@@ -27,6 +28,7 @@ impl Default for Settings {
             pdf_dpi: 200,
             welcomed: false,
             lang: "auto".into(),
+            theme: "auto".into(),
             gpu: true,
             ui_idle_seconds: 60,
             enabled: true,

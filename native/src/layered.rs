@@ -128,8 +128,3 @@ pub fn monitor_at(x: i32, y: i32) -> (f32, RECT, RECT) {
         (dx as f32 / 96.0, mi.rcMonitor, mi.rcWork)
     }
 }
-
-/// Keep a window out of screen captures (so we can re-capture what is behind it).
-pub fn exclude_from_capture(hwnd: HWND) -> bool {
-    unsafe { SetWindowDisplayAffinity(hwnd, WINDOW_DISPLAY_AFFINITY(0x11)).is_ok() }
-}

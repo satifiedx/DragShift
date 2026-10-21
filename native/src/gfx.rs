@@ -28,26 +28,18 @@ impl Color {
     }
 }
 
-pub const WHITE: Color = Color::rgb(255, 255, 255);
-
-/// Pastel rainbow used for the iridescent rims (same stops as the Qt version).
-pub const IRIDESCENT: [Color; 8] = [
-    Color::rgb(0xff, 0x6b, 0x9d),
-    Color::rgb(0xff, 0xb3, 0x6b),
-    Color::rgb(0xff, 0xe6, 0x6b),
-    Color::rgb(0x7d, 0xff, 0xb0),
-    Color::rgb(0x6b, 0xd5, 0xff),
-    Color::rgb(0x8a, 0x7b, 0xff),
-    Color::rgb(0xe0, 0x7b, 0xff),
-    Color::rgb(0xff, 0x6b, 0x9d),
-];
-
-pub fn iridescent(t: f32) -> Color {
-    let t = t.rem_euclid(1.0) * 7.0;
-    let i = (t.floor() as usize).min(6);
-    let f = t - i as f32;
-    let (a, b) = (IRIDESCENT[i], IRIDESCENT[i + 1]);
-    Color { r: a.r + (b.r - a.r) * f, g: a.g + (b.g - a.g) * f, b: a.b + (b.b - a.b) * f, a: 1.0 }
+/// Composite a premultiplied pixel (0..255 channels, alpha 0..1) over `p` at opacity `k`.
+#[inline]
+fn over_px(p: &mut [u8; 4], s: [f32; 4], k: f32) {
+    let a = s[3] * k;
+    if a <= 0.001 {
+        return;
+    }
+    let inv = 1.0 - a;
+    p[0] = (s[0] * k + p[0] as f32 * inv + 0.5).min(255.0) as u8;
+    p[1] = (s[1] * k + p[1] as f32 * inv + 0.5).min(255.0) as u8;
+    p[2] = (s[2] * k + p[2] as f32 * inv + 0.5).min(255.0) as u8;
+    p[3] = (a * 255.0 + p[3] as f32 * inv + 0.5).min(255.0) as u8;
 }
 
 /// Premultiplied BGRA pixels, row-major, top-down.
@@ -86,20 +78,6 @@ impl Canvas {
         p[3] = (a * 255.0 + p[3] as f32 * inv + 0.5) as u8;
     }
 
-    /// Composite a premultiplied pixel over this one.
-    #[inline]
-    pub fn over(&mut self, x: usize, y: usize, s: [f32; 4], k: f32) {
-        let a = s[3] * k;
-        if a <= 0.001 {
-            return;
-        }
-        let p = &mut self.px[y * self.w + x];
-        let inv = 1.0 - a;
-        p[0] = (s[0] * k + p[0] as f32 * inv + 0.5).min(255.0) as u8;
-        p[1] = (s[1] * k + p[1] as f32 * inv + 0.5).min(255.0) as u8;
-        p[2] = (s[2] * k + p[2] as f32 * inv + 0.5).min(255.0) as u8;
-        p[3] = (a * 255.0 + p[3] as f32 * inv + 0.5).min(255.0) as u8;
-    }
 
     fn bounds(&self, x0: f32, y0: f32, x1: f32, y1: f32) -> (usize, usize, usize, usize) {
         let bx0 = x0.floor().max(0.0) as usize;
@@ -155,30 +133,15 @@ impl Canvas {
             let ring = ((x - cx).hypot(y - cy) - r).abs() - width / 2.0;
             let ang = (y - cy).atan2(x - cx);
             let rel = (ang - a0).rem_euclid(std::f32::consts::TAU);
-            if rel <= sweep { ring } else { 1.0 }
+            if rel <= sweep {
+                ring
+            } else {
+                // round caps
+                let a1 = a0 + sweep;
+                let cap = |a: f32| (x - cx - r * a.cos()).hypot(y - cy - r * a.sin());
+                cap(a0).min(cap(a1)) - width / 2.0
+            }
         }, color);
-    }
-
-    /// Straight copy of `src` over this canvas at (dx, dy), scaled by opacity `k`.
-    pub fn draw(&mut self, src: &Canvas, dx: i32, dy: i32, k: f32) {
-        for sy in 0..src.h {
-            let y = sy as i32 + dy;
-            if y < 0 || y >= self.h as i32 {
-                continue;
-            }
-            for sx in 0..src.w {
-                let x = sx as i32 + dx;
-                if x < 0 || x >= self.w as i32 {
-                    continue;
-                }
-                let s = src.px[sy * src.w + sx];
-                if s[3] == 0 {
-                    continue;
-                }
-                self.over(x as usize, y as usize,
-                          [s[0] as f32, s[1] as f32, s[2] as f32, s[3] as f32 / 255.0], k);
-            }
-        }
     }
 
     /// Bilinear sample (premultiplied, 0..255 channels, alpha 0..1).
@@ -213,34 +176,27 @@ impl Canvas {
     }
 
 
-    /// Draw `src` mapped by screen = src·k + (tx, ty), clipped by `mask` in source coordinates.
-    pub fn draw_affine(&mut self, src: &Canvas, k: f32, tx: f32, ty: f32, alpha: f32,
-                       region: (f32, f32, f32, f32), mask: impl Fn(f32, f32) -> f32) {
-        let (x0, y0, x1, y1) = self.bounds(region.0, region.1, region.2, region.3);
-        let nearest = (k - 1.0).abs() < 1e-4 && tx.fract() == 0.0 && ty.fract() == 0.0;
-        for y in y0..y1 {
-            let sy = (y as f32 + 0.5 - ty) / k;
-            for x in x0..x1 {
-                let sx = (x as f32 + 0.5 - tx) / k;
-                let m = mask(sx, sy);
-                if m <= 0.0 {
-                    continue;
-                }
-                let s = if nearest {
-                    let (ix, iy) = (sx as i32, sy as i32);
-                    if ix < 0 || iy < 0 || ix >= src.w as i32 || iy >= src.h as i32 {
-                        continue;
-                    }
-                    let p = src.px[iy as usize * src.w + ix as usize];
-                    [p[0] as f32, p[1] as f32, p[2] as f32, p[3] as f32 / 255.0]
-                } else {
-                    src.sample(sx, sy)
-                };
-                self.over(x, y, s, alpha * m);
-            }
+    /// Composite `src` mapped by screen = src·k + (tx, ty) at opacity `alpha`, on all cores.
+    /// Unscaled and opaque onto an empty canvas it is a plain copy.
+    pub fn draw_scaled(&mut self, src: &Canvas, k: f32, tx: f32, ty: f32, alpha: f32) {
+        if (k - 1.0).abs() < 1e-4 && tx.abs() < 1e-3 && ty.abs() < 1e-3 && alpha >= 0.999 && src.w == self.w && src.h == self.h
+            && self.px.iter().all(|p| p[3] == 0) {
+            self.px.copy_from_slice(&src.px);
+            return;
         }
+        let w = self.w;
+        crate::shape::par_rows(&mut self.px, w, |y, row| {
+            let sy = (y as f32 + 0.5 - ty) / k;
+            if sy < -1.0 || sy > src.h as f32 + 1.0 {
+                return;
+            }
+            for (x, p) in row.iter_mut().enumerate() {
+                let sx = (x as f32 + 0.5 - tx) / k;
+                let s = src.sample(sx, sy);
+                over_px(p, s, alpha);
+            }
+        });
     }
-
 
     /// Paint a straight-alpha BGRA thumbnail inside a rounded rect.
     pub fn draw_thumb(&mut self, bgra: &[u8], tw: usize, th: usize, x: f32, y: f32, size: f32, r: f32) {
@@ -394,11 +350,69 @@ pub fn metrics(px: f32, weight: Weight) -> (f32, f32) {
     (sf.ascent(), -sf.descent())
 }
 
+/// Coverage → alpha with a touch of gamma (c^0.85): grayscale AA otherwise looks thin.
+fn gamma(c: f32) -> u8 {
+    static LUT: OnceLock<[u8; 256]> = OnceLock::new();
+    let t = LUT.get_or_init(|| std::array::from_fn(|i| ((i as f32 / 255.0).powf(0.85) * 255.0 + 0.5) as u8));
+    t[(c.clamp(0.0, 1.0) * 255.0 + 0.5) as usize]
+}
+
+/// A rasterised glyph: coverage (gamma applied) and its offset from the whole-pixel pen position.
+struct Glyph {
+    x: i32,
+    y: i32,
+    w: usize,
+    cov: Vec<u8>,
+}
+
+type GlyphKey = (usize, u16, u32, u8);
+
+thread_local! {
+    // Glyphs at quarter-pixel positions: animated frames draw the same few labels over and over.
+    static GLYPHS: std::cell::RefCell<std::collections::HashMap<GlyphKey, Option<std::rc::Rc<Glyph>>>> =
+        Default::default();
+}
+
+/// Let the glyph cache go (the UI is idle).
+pub fn forget_glyphs() {
+    GLYPHS.with(|g| *g.borrow_mut() = Default::default());
+}
+
+fn glyph(f: &FontRef<'static>, id: ab_glyph::GlyphId, scale: PxScale, sub: (u8, u8)) -> Option<std::rc::Rc<Glyph>> {
+    let key = (f as *const _ as usize, id.0, (scale.y * 16.0) as u32, sub.0 * 4 + sub.1);
+    GLYPHS.with(|cache| {
+        if let Some(g) = cache.borrow().get(&key) {
+            return g.clone();
+        }
+        let pos = ab_glyph::point(sub.0 as f32 / 4.0, sub.1 as f32 / 4.0);
+        let g = f.outline_glyph(id.with_scale_and_position(scale, pos)).map(|o| {
+            let b = o.px_bounds();
+            let (w, h) = (b.width() as usize, b.height() as usize);
+            let mut cov = vec![0u8; w * h];
+            o.draw(|gx, gy, c| {
+                if (gx as usize) < w && (gy as usize) < h {
+                    cov[gy as usize * w + gx as usize] = gamma(c);
+                }
+            });
+            std::rc::Rc::new(Glyph { x: b.min.x as i32, y: b.min.y as i32, w, cov })
+        });
+        let mut c = cache.borrow_mut();
+        if c.len() > 4096 {
+            c.clear();
+        }
+        c.insert(key, g.clone());
+        g
+    })
+}
+
 /// Draw text with its left edge at `x` and baseline at `baseline`.
 pub fn draw_text(cv: &mut Canvas, t: &Text, x: f32, baseline: f32, color: Color) {
     let Some(fs) = fonts() else { return };
     let mut pen = x;
+    let qy = (baseline * 4.0).round() / 4.0;
+    let (iy, sy) = (qy.floor(), ((qy - qy.floor()) * 4.0) as u8);
     let mut prev: Option<(ab_glyph::GlyphId, *const FontRef<'static>)> = None;
+    let (cw, ch) = (cv.w as i32, cv.h as i32);
     for c in t.s.chars() {
         let f = fs.pick(t.weight, c);
         let scale = scale_for(f, t.px);
@@ -409,18 +423,22 @@ pub fn draw_text(cv: &mut Canvas, t: &Text, x: f32, baseline: f32, color: Color)
                 pen += sf.kern(p, id);
             }
         }
-        let g = id.with_scale_and_position(scale, ab_glyph::point(pen, baseline));
-        if let Some(o) = f.outline_glyph(g) {
-            let b = o.px_bounds();
-            let (w, h) = (cv.w as i32, cv.h as i32);
-            o.draw(|gx, gy, c| {
-                let x = b.min.x as i32 + gx as i32;
-                let y = b.min.y as i32 + gy as i32;
-                if x >= 0 && y >= 0 && x < w && y < h {
-                    // a touch of gamma: grayscale AA otherwise looks thin on dark glass
-                    cv.blend(x as usize, y as usize, color, c.powf(0.85));
+        let qx = (pen * 4.0).round() / 4.0;
+        let (ix, sx) = (qx.floor(), ((qx - qx.floor()) * 4.0) as u8);
+        if let Some(g) = glyph(f, id, scale, (sx, sy)) {
+            let (ox, oy) = (ix as i32 + g.x, iy as i32 + g.y);
+            for (gy, row) in g.cov.chunks_exact(g.w.max(1)).enumerate() {
+                let y = oy + gy as i32;
+                if y < 0 || y >= ch {
+                    continue;
                 }
-            });
+                for (gx, &a) in row.iter().enumerate() {
+                    let x = ox + gx as i32;
+                    if a > 0 && x >= 0 && x < cw {
+                        cv.blend(x as usize, y as usize, color, a as f32 / 255.0);
+                    }
+                }
+            }
         }
         pen += sf.h_advance(id) + t.spacing;
         prev = Some((id, f as *const _));
@@ -496,77 +514,4 @@ pub fn wrap(s: &str, px: f32, weight: Weight, maxw: f32, max_lines: usize) -> Ve
         }
     }
     lines
-}
-
-// ------------------------------------------------------------------ blur
-
-/// Three box blurs ≈ a Gaussian of `sigma`, on a planar f32 RGB buffer.
-pub fn blur_rgb(img: &mut [[f32; 3]], w: usize, h: usize, sigma: f32) {
-    if sigma <= 0.3 {
-        return;
-    }
-    let r = ((sigma * sigma * 4.0 + 1.0).sqrt() / 2.0).round().max(1.0) as usize;
-    let mut tmp = vec![[0f32; 3]; w * h];
-    for _ in 0..3 {
-        box_h(img, &mut tmp, w, h, r);
-        box_v(&tmp, img, w, h, r);
-    }
-}
-
-fn box_h(src: &[[f32; 3]], dst: &mut [[f32; 3]], w: usize, h: usize, r: usize) {
-    let norm = 1.0 / (2 * r + 1) as f32;
-    for y in 0..h {
-        let row = &src[y * w..(y + 1) * w];
-        let mut acc = [0f32; 3];
-        for i in 0..=(2 * r) {
-            let p = row[(i as isize - r as isize).clamp(0, w as isize - 1) as usize];
-            for c in 0..3 {
-                acc[c] += p[c];
-            }
-        }
-        for x in 0..w {
-            let o = &mut dst[y * w + x];
-            for c in 0..3 {
-                o[c] = acc[c] * norm;
-            }
-            let add = row[(x + r + 1).min(w - 1)];
-            let sub = row[(x as isize - r as isize).max(0) as usize];
-            for c in 0..3 {
-                acc[c] += add[c] - sub[c];
-            }
-        }
-    }
-}
-
-fn box_v(src: &[[f32; 3]], dst: &mut [[f32; 3]], w: usize, h: usize, r: usize) {
-    let norm = 1.0 / (2 * r + 1) as f32;
-    for x in 0..w {
-        let mut acc = [0f32; 3];
-        for i in 0..=(2 * r) {
-            let p = src[(i as isize - r as isize).clamp(0, h as isize - 1) as usize * w + x];
-            for c in 0..3 {
-                acc[c] += p[c];
-            }
-        }
-        for y in 0..h {
-            let o = &mut dst[y * w + x];
-            for c in 0..3 {
-                o[c] = acc[c] * norm;
-            }
-            let add = src[(y + r + 1).min(h - 1) * w + x];
-            let sub = src[(y as isize - r as isize).max(0) as usize * w + x];
-            for c in 0..3 {
-                acc[c] += add[c] - sub[c];
-            }
-        }
-    }
-}
-
-/// Blur a single-channel buffer (used for inpainting masks).
-pub fn blur_gray(img: &mut [f32], w: usize, h: usize, sigma: f32) {
-    let mut rgb: Vec<[f32; 3]> = img.iter().map(|&v| [v, 0.0, 0.0]).collect();
-    blur_rgb(&mut rgb, w, h, sigma);
-    for (o, p) in img.iter_mut().zip(rgb) {
-        *o = p[0];
-    }
 }
