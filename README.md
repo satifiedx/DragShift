@@ -1,6 +1,6 @@
 # DragShift
 
-**Начните тащить любой файл, нажмите Shift и бросьте его на сектор радиального меню.** Конвертация и правка картинок, PDF, документов, **аудио и видео** прямо из Проводника, без открытия программ.
+**Начните тащить любой файл, нажмите Shift и бросьте его на сектор меню.** Конвертация и правка картинок, PDF, документов, **аудио и видео** прямо из Проводника, без открытия программ.
 
 [English below](#english)
 
@@ -15,14 +15,14 @@
 
 Windows 10 и 11, 64 бита. ffmpeg уже внутри, ничего доустанавливать не надо.
 
-> SmartScreen может ругнуться, потому что exe не подписан платным сертификатом. Жмите **Подробнее → Выполнить в любом случае**. Хеши файлов лежат в `SHA256SUMS.txt` рядом с релизом.
+> SmartScreen может ругнуться, потому что exe не подписан платным сертификатом. Жмите **Подробнее → Выполнить в любом случае**. Хеши файлов лежат в `SHA256SUMS.txt` рядом с релизом, результаты VirusTotal ниже.
 
 ## Протестить за 2 минуты
 
 1. Поставьте DragShift-Setup.exe и оставьте галку «Запустить». Справа внизу появится карточка «DragShift готов», а в трее иконка.
 2. Возьмите любой **mp3/wav/flac**, начните тащить мышкой и, не отпуская, нажмите **Shift**. Под курсором откроется меню.
 3. Бросьте файл на **MP3**, **OPUS** или **FLAC**. Готовый файл появится рядом с оригиналом, оригинал не трогается.
-4. Ещё раз Shift во время перетаскивания переключает кольца: **Конвертация → Инструменты → Сжатие**.
+4. Каждое нажатие Shift во время перетаскивания переключает кольцо: **Конвертация → Инструменты → Сжатие**.
 5. Видео (**mp4/mkv/mov…**): кольцо **Сжатие** ужмёт ролик до 10, 25 или 50 МБ для Discord и мессенджеров. На видеокартах NVIDIA, Intel и AMD это в разы быстрее.
 6. **Инструменты → Обрезать** открывает окно с волной и раскадровкой: тащите края, слушайте пробелом, ставьте затухания.
 7. Без перетаскивания: правый клик по файлу → **DragShift…**, **Отправить → DragShift**, или иконка в трее → **Открыть файл…**.
@@ -39,21 +39,50 @@ Windows 10 и 11, 64 бита. ffmpeg уже внутри, ничего доус
 
 Когда это возможно, DragShift вообще не перекодирует: смена контейнера, поворот MP4/MOV и быстрая обрезка копируют потоки как есть и делаются за доли секунды. Обложки альбомов и теги сохраняются. Битрейт выше исходного DragShift делать откажется, потому что файл только раздуется. А если ролик и так меньше 10 МБ, он просто скажет об этом и ничего не создаст.
 
-Язык интерфейса берётся из Windows (русский или английский), поменять можно в Настройках.
+**Вид.** Матовое меню и окна в цветах эспрессо с терракотовым акцентом. Светлая и тёмная тема переключаются вместе с Windows, а в Настройках → Тема можно закрепить любую. Анимации идут с частотой вашего монитора (60, 144, 240 Гц).
 
-## Почему он не тормозит
+**Язык** берётся из Windows: русский, украинский или английский. Поменять можно в Настройках.
 
-DragShift 2 переписан: то, что работает всегда (хуки клавиатуры и мыши, меню, уведомления, ffmpeg), это маленькая нативная программа на Rust.
+## Сколько ест ресурсов
 
-- **В простое около 1 МБ рабочей памяти** (2…4 МБ private) и **0% процессора**: никаких таймеров и опросов, только системные хуки.
-- Окна редактора (PySide6) запускаются, только когда вы их открываете, и **сами выгружаются через минуту** простоя.
-- ffmpeg работает с пониженным приоритетом, так что даже сжатие 4K не мешает играм и работе.
-- Пример: ролик 1080p60 на 40 секунд, 172 МБ → 9.2 МБ за 3.8 секунды на GTX 1060.
+Замерено на сборке из этой ветки: Intel Core i7-8700 (12 потоков), 32 ГБ, GTX 1060, монитор 240 Гц, Windows 11. «Память» тут это рабочий набор, его же показывает Диспетчер задач. Private это сколько процесс реально занял у системы.
+
+| Что происходит | Процессор | Память (рабочий набор / private) |
+|---|---|---|
+| DragShift висит в трее, 2 минуты обычной работы за ПК | **0.01%** всего CPU (0.14% одного ядра, это хук мыши) | **0.6…1.8 МБ** / 2.1…2.7 МБ, 3 потока |
+| Меню открыто | **0.76%** всего CPU (9% одного ядра), **240 кадров/с**, кадр рисуется за 0.47 мс | 10.9 МБ / 6.1 МБ, после закрытия снова 0.6 МБ |
+| Открыт редактор картинки (процесс DragShiftUI.exe) | 0% в простое, процесс стартует за 0.5 с | 87 МБ / 71 МБ |
+| Плюс окно обрезки аудио (mp3 на 3 минуты) | 0% в простое | 98 МБ / 78 МБ на весь процесс |
+| Окна закрыты | DragShiftUI.exe сам завершается через минуту | 0 |
+
+На диске: установленный DragShift занимает **270 МБ** (сам демон 1 МБ, окна редактора 174 МБ, ffmpeg 95 МБ). Установщик **69.5 МБ**, портативный zip **104 МБ**.
+
+Как это устроено: то, что работает всегда (хуки клавиатуры и мыши, меню, уведомления, ffmpeg), это маленькая нативная программа на Rust. Никаких таймеров и опросов в простое, только системные хуки. Окна редактора (PySide6) запускаются, только когда вы их открываете. ffmpeg работает с пониженным приоритетом, так что даже сжатие 4K не мешает играм. Пример: ролик 1080p60 на 40 секунд, 172 МБ → 9.2 МБ за 3.8 секунды на GTX 1060.
+
+## Проверка на вирусы
+
+Каждый файл сборки залит на VirusTotal:
+
+| Файл | SHA-256 | VirusTotal |
+|---|---|---|
+| DragShift-2.0.0-Setup.exe | `877a65c2fcfce22c28b868dc74515fc5cf87b87f457765da67cd3214a03ca8c0` | [0 детектов](https://www.virustotal.com/gui/file/877a65c2fcfce22c28b868dc74515fc5cf87b87f457765da67cd3214a03ca8c0) |
+| DragShift-2.0.0-Portable.zip | `b9f1f432bbfe02a31f868c8724de97d156d717eda175e631d67824faf9392b63` | [1/65](https://www.virustotal.com/gui/file/b9f1f432bbfe02a31f868c8724de97d156d717eda175e631d67824faf9392b63) |
+| DragShift.exe (демон) | `9ff2c99f91b65622d009909079e5b49e06afd0c149d2b23daad3a370c5b9f174` | [1/71](https://www.virustotal.com/gui/file/9ff2c99f91b65622d009909079e5b49e06afd0c149d2b23daad3a370c5b9f174) |
+| ui\DragShiftUI.exe (окна редактора) | `e56e56ca9b9ea8b21427098bac17c659b740c943f36e24e4860466f2792b35db` | [2/70](https://www.virustotal.com/gui/file/e56e56ca9b9ea8b21427098bac17c659b740c943f36e24e4860466f2792b35db) |
+| ffmpeg\ffmpeg.exe 8.0.1 | `5af82a0d4fe2b9eae211b967332ea97edfc51c6b328ca35b827e73eac560dc0d` | [0/69](https://www.virustotal.com/gui/file/5af82a0d4fe2b9eae211b967332ea97edfc51c6b328ca35b827e73eac560dc0d) |
+
+![VirusTotal: DragShift.exe](docs/img/vt-daemon.jpg)
+
+![VirusTotal: DragShiftUI.exe](docs/img/vt-ui.jpg)
+
+![VirusTotal: портативный zip](docs/img/vt-portable.jpg)
+
+Установщик чистый. Срабатывания у бинарей ложные, и вот почему. **SecureAge** помечает «Malicious» почти любой свежий exe без платной цифровой подписи. **Zillya** называет `Trojan.Stealer` стандартный загрузчик PyInstaller, которым упакованы окна редактора; она же находит его внутри zip. Microsoft Defender, Kaspersky, ESET, Bitdefender, Avast, DrWeb, CrowdStrike и остальные 60+ движков ничего не видят. Код открыт, сборку можно повторить командой из раздела ниже и сравнить хеши.
 
 ## Безопасность
 
 - Оригиналы никогда не меняются, результат всегда пишется новым файлом, во время работы во временный `.part`.
-- В комплекте ffmpeg 8.0.1 «essentials» от [gyan.dev](https://www.gyan.dev/ffmpeg/builds/). Сборка скачивает строго этот архив и проверяет SHA-256 архива и `ffmpeg.exe` до использования ([VirusTotal: 0/69](https://www.virustotal.com/gui/file/5af82a0d4fe2b9eae211b967332ea97edfc51c6b328ca35b827e73eac560dc0d)).
+- В комплекте ffmpeg 8.0.1 «essentials» от [gyan.dev](https://www.gyan.dev/ffmpeg/builds/). Сборка скачивает строго этот архив и проверяет SHA-256 архива и `ffmpeg.exe` до использования.
 - Никакой сети, телеметрии и рекламы. Весь код открыт.
 
 ## Сборка из исходников
@@ -72,7 +101,7 @@ powershell -ExecutionPolicy Bypass -File packaging\build.ps1 -Python .venv\Scrip
 
 ## Благодарности
 
-Оригинальный DragShift сделал [llamaboi55](https://github.com/llamaboi55/DragShift): стеклянное меню, редакторы картинок и PDF. Этот форк добавил аудио и видео, нативный демон, русский язык и новую сборку. Версии для Mac и Linux живут в оригинальном репозитории, код Python-приложения 1.x здесь сохранён (`dragshift/app.py`), но в этом форке они не собираются и не проверяются.
+Оригинальный DragShift сделал [llamaboi55](https://github.com/llamaboi55/DragShift): радиальное меню, редакторы картинок и PDF. Этот форк добавил аудио и видео, нативный демон, матовый дизайн, русский и украинский языки и новую сборку. Версии для Mac и Linux живут в оригинальном репозитории, код Python-приложения 1.x здесь сохранён (`dragshift/app.py`), но в этом форке они не собираются и не проверяются.
 
 Лицензия MIT. ffmpeg распространяется под GPL v3 отдельной программой, его лицензия лежит в `ffmpeg\`.
 
@@ -85,14 +114,28 @@ powershell -ExecutionPolicy Bypass -File packaging\build.ps1 -Python .venv\Scrip
 
 **Download** from the [latest release](../../releases/latest): `DragShift-2.0.0-Setup.exe` (per-user, no admin, adds a right-click **DragShift…** entry and Send To) or `DragShift-2.0.0-Portable.zip`. Windows 10/11 x64, ffmpeg included.
 
-**Try it:** install, drag an mp3 or a video, press Shift while dragging, drop it on MP3, OPUS or **25 MB**. Press Shift again to switch rings (Convert, Tools, Compress). **Tools → Trim** opens a waveform editor with fades and preview playback.
+**Try it:** install, drag an mp3 or a video, press Shift while dragging, drop it on MP3, OPUS or **25 MB**. Each Shift press while dragging switches the ring (Convert, Tools, Compress). **Tools → Trim** opens a waveform editor with fades and preview playback.
 
-**What's new in 2.0**
+**What's in 2.0**
 - Audio: MP3, M4A, WAV, FLAC, OGG, OPUS, AIFF, WMA, ALAC; bitrate presets; trim with waveform, fades and listening; speed with pitch kept.
 - Video: MP4, MKV, WEBM, MOV, AVI, GIF; compress to 10/25/50 MB or ½ / ¼ with GPU encoders (NVENC, Quick Sync, AMF) and a CPU fallback; trim (exact or keyframe-fast), crop, lossless rotate, speed, mute, extract soundtrack, frame snapshot.
-- A native Rust daemon: about 1 MB working set and 0% CPU while idle. The PySide6 editor windows start only when needed and exit after a minute of idle.
-- Russian and English UI, following Windows or set in Settings.
+- A matte espresso-and-terracotta look, light or dark with Windows (or pinned in Settings → Theme), animated at your monitor's refresh rate.
+- English, Russian and Ukrainian UI, following Windows or set in Settings.
 - Streams are copied instead of re-encoded whenever possible; cover art and tags are kept; originals are never modified. DragShift won't raise a bitrate or "compress" a file that is already under the target size, it just tells you so.
+
+**Measured resource use** (i7-8700, 12 threads, 32 GB, GTX 1060, 240 Hz monitor, Windows 11; memory is the working set Task Manager shows, then private bytes):
+
+| State | CPU | Memory |
+|---|---|---|
+| Idle in the tray, 2 minutes of normal PC use | 0.01% of total CPU (0.14% of one core, the mouse hook) | 0.6–1.8 MB / 2.1–2.7 MB |
+| Menu open | 0.76% of total CPU, 240 fps, 0.47 ms per frame | 10.9 MB / 6.1 MB, back to 0.6 MB once closed |
+| Image editor open (DragShiftUI.exe) | 0% idle, process starts in 0.5 s | 87 MB / 71 MB |
+| Plus the audio trimmer (3 min mp3) | 0% idle | 98 MB / 78 MB for the whole process |
+| Editors closed | DragShiftUI.exe exits after a minute | 0 |
+
+On disk: 270 MB installed (daemon 1 MB, editor windows 174 MB, ffmpeg 95 MB); the installer is 69.5 MB, the portable zip 104 MB.
+
+**VirusTotal:** Setup.exe 0 detections, Portable.zip 1/65, DragShift.exe 1/71, DragShiftUI.exe 2/70, ffmpeg.exe 0/69. Links and SHA-256 are in the table above. Setup is clean; the hits on the binaries are false positives: SecureAge flags almost any new unsigned exe, and Zillya calls the stock PyInstaller bootloader of the editor windows `Trojan.Stealer` (and finds it again inside the zip). Defender, Kaspersky, ESET, Bitdefender and 60+ other engines report nothing.
 
 **Build:** Rust stable, Python 3.10+, Inno Setup 6, then `packaging\build.ps1` (see above). `DragShift.exe --selftest` runs 33 audio/video scenarios.
 
