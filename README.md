@@ -74,7 +74,7 @@ Windows 10 и 11, 64 бита. ffmpeg уже внутри, ничего доус
 | DragShift-2.2.0-Setup.exe | `6450abba55dc2d4955506fdf3e415c75eba0a1bae15086315af03740328f3c1c` | [0/66](https://www.virustotal.com/gui/file/6450abba55dc2d4955506fdf3e415c75eba0a1bae15086315af03740328f3c1c) |
 | DragShift-2.2.0-Portable.zip | `173d31fb205754efbb0505444692abac99c056a2f5344af5f65ef9764a96c813` | [1/60](https://www.virustotal.com/gui/file/173d31fb205754efbb0505444692abac99c056a2f5344af5f65ef9764a96c813) |
 | DragShift.exe (демон) | `c48a9f63b6b1aa2667295481cb69d9faa75b3dba573069ec73ee2e83dd4c9761` | [1/70](https://www.virustotal.com/gui/file/c48a9f63b6b1aa2667295481cb69d9faa75b3dba573069ec73ee2e83dd4c9761) |
-| ui\DragShiftUI.exe (окна редактора) | `d7b6d47d7817739e632e9bb59e4b46f9f0652ea9930ec9a149140d92d5508e41` | [3/71](https://www.virustotal.com/gui/file/d7b6d47d7817739e632e9bb59e4b46f9f0652ea9930ec9a149140d92d5508e41) |
+| ui\DragShiftUI.exe (окна редактора) | `d7b6d47d7817739e632e9bb59e4b46f9f0652ea9930ec9a149140d92d5508e41` | [2/68](https://www.virustotal.com/gui/file/d7b6d47d7817739e632e9bb59e4b46f9f0652ea9930ec9a149140d92d5508e41) |
 | ffmpeg\ffmpeg.exe 8.0.1 | `5af82a0d4fe2b9eae211b967332ea97edfc51c6b328ca35b827e73eac560dc0d` | [0/69](https://www.virustotal.com/gui/file/5af82a0d4fe2b9eae211b967332ea97edfc51c6b328ca35b827e73eac560dc0d) |
 
 ![VirusTotal: установщик](docs/img/vt-setup.jpg)
@@ -85,7 +85,7 @@ Windows 10 и 11, 64 бита. ffmpeg уже внутри, ничего доус
 
 ![VirusTotal: портативный zip](docs/img/vt-portable.jpg)
 
-Установщик чистый. Срабатывания у бинарей ложные, и вот почему. **SecureAge** помечает «Malicious» почти любой свежий exe без платной цифровой подписи. **Zillya** называет `Trojan.Stealer` стандартный загрузчик PyInstaller, которым упакованы окна редактора; она же находит его внутри zip. **Microsoft** в 2.2.0 выдал на окна редактора `Wacatac.C!ml`: суффикс `!ml` значит, что это догадка нейросетки, а не сигнатура, и она часто цепляет неподписанные сборки PyInstaller. Kaspersky, ESET, Bitdefender, Avast, DrWeb, CrowdStrike и остальные 60+ движков ничего не видят. Код открыт, сборку можно повторить командой из раздела ниже и сравнить хеши.
+Установщик чистый. Срабатывания у бинарей ложные, и вот почему. **SecureAge** помечает «Malicious» почти любой свежий exe без платной цифровой подписи. **Zillya** называет `Trojan.Stealer` стандартный загрузчик PyInstaller, которым упакованы окна редактора; она же находит его внутри zip. Microsoft Defender, Kaspersky, ESET, Bitdefender, Avast, DrWeb, CrowdStrike и остальные 60+ движков ничего не видят. Код открыт, сборку можно повторить командой из раздела ниже и сравнить хеши.
 
 ## Безопасность
 
@@ -154,7 +154,7 @@ powershell -ExecutionPolicy Bypass -File packaging\build.ps1 -Python .venv\Scrip
 
 On disk: 270 MB installed (daemon 1 MB, editor windows 174 MB, ffmpeg 95 MB); the installer is 69.5 MB, the portable zip 104 MB.
 
-**VirusTotal (2.2.0):** Setup.exe 0/66, Portable.zip 1/60, DragShift.exe 1/70, DragShiftUI.exe 3/71, ffmpeg.exe 0/69. Links and SHA-256 are in the table above. Setup is clean; the hits on the binaries are false positives: SecureAge flags almost any new unsigned exe, Zillya calls the stock PyInstaller bootloader of the editor windows `Trojan.Stealer` (and finds it again inside the zip), and Microsoft's `Wacatac.C!ml` is a machine-learning guess, not a signature, that often lands on unsigned PyInstaller builds. Kaspersky, ESET, Bitdefender and 60+ other engines report nothing.
+**VirusTotal (2.2.0):** Setup.exe 0/66, Portable.zip 1/60, DragShift.exe 1/70, DragShiftUI.exe 2/68, ffmpeg.exe 0/69. Links and SHA-256 are in the table above. Setup is clean; the hits on the binaries are false positives: SecureAge flags almost any new unsigned exe, Zillya calls the stock PyInstaller bootloader of the editor windows `Trojan.Stealer` (and finds it again inside the zip). Defender, Kaspersky, ESET, Bitdefender and 60+ other engines report nothing.
 
 **Build:** Rust stable, Python 3.10+, Inno Setup 6, then `packaging\build.ps1` (see above). `DragShift.exe --selftest` runs 33 audio/video scenarios.
 
