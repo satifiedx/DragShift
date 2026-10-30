@@ -99,6 +99,15 @@ fn mono(i: &Info, o: &Info) -> Result<(), String> {
     }
 }
 
+fn normalized(i: &Info, o: &Info) -> Result<(), String> {
+    match (i.audio.first(), o.audio.first()) {
+        (Some(a), Some(b)) if a.channels != b.channels => Err(format!("channels {} → {}", a.channels, b.channels)),
+        (Some(a), Some(b)) if a.sample_rate != b.sample_rate => Err(format!("rate {} → {}", a.sample_rate, b.sample_rate)),
+        (Some(_), Some(_)) => same_len(i, o),
+        _ => Err("no audio in output".into()),
+    }
+}
+
 fn video_ok(i: &Info, o: &Info) -> Result<(), String> {
     if o.video.is_empty() {
         return Err("no video".into());
@@ -149,6 +158,9 @@ fn checks() -> Vec<Check> {
     v.push(c(Mono, "clip.mkv", "mkv", mono));
     v.push(c(Mono, "tone.mp3", "mp3", mono));
     v.push(c(Mono, "tone.flac", "flac", mono));
+    v.push(c(Normalize, "tone.mp3", "mp3", normalized));
+    v.push(c(Normalize, "tone.flac", "flac", normalized));
+    v.push(c(Normalize, "clip.mp4", "mp4", normalized));
     v.push(c(ExtractAudio, "clip.mp4", "m4a", has_audio_only));
     v.push(c(Frame(None), "clip.mp4", "png", |_, o| if o.size() == Some((1280, 720)) { Ok(()) } else { Err(format!("{:?}", o.size())) }));
     v.push(c(Trim { start: 1.0, end: 4.0, fade_in: 0.0, fade_out: 0.0, fast: false }, "clip.mp4", "mp4", |_, o| dur_near(3.0)(o)));

@@ -34,7 +34,7 @@ Windows 10 и 11, 64 бита. ffmpeg уже внутри, ничего доус
 
 | Файлы | Конвертация | Инструменты |
 |---|---|---|
-| **Аудио** mp3, m4a, aac, wav, flac, ogg, opus, aiff, wma, alac, amr, ape… | MP3, M4A, WAV, FLAC, OGG, OPUS, AIFF, WMA, ALAC | Обрезка с волной, нарастание и затухание, прослушка. Битрейт 320…64k. Скорость с сохранением тона. Стерео в моно |
+| **Аудио** mp3, m4a, aac, wav, flac, ogg, opus, aiff, wma, alac, amr, ape… | MP3, M4A, WAV, FLAC, OGG, OPUS, AIFF, WMA, ALAC | Обрезка с волной, нарастание и затухание, прослушка. Битрейт 320…64k. Скорость с сохранением тона. Стерео в моно. Нормализация громкости |
 | **Видео** mp4, mkv, mov, webm, avi, wmv, flv, ts, 3gp… | MP4, MKV, WEBM, MOV, AVI, GIF, MP3, M4A, WAV | Сжать до 10/25/50 МБ или в 2 и 4 раза в H.265 или H.264 (GPU: NVENC, Quick Sync, AMF), свои пресеты (H.265, H.264, AV1, VP9, битрейт, разрешение, AAC/Opus/MP3), обрезка, кадрирование, поворот без перекодирования, скорость, убрать звук, звук в моно, вытащить звук, стоп-кадр в PNG |
 | **Картинки** png, jpg, webp, heic, avif, tiff, bmp, gif, ico | PNG, JPG, WEBP, HEIC, TIFF, AVIF, BMP, PDF, ICO, GIF | Сжатие, размер, кадрирование, правка света и цвета, пометки, скрытие личного, фон, метаданные и GPS |
 | **PDF** | JPG, PNG, DOCX, TXT | Сжатие, разделение, поворот, объединение, пароль, достать картинки, метаданные |
@@ -136,7 +136,7 @@ powershell -ExecutionPolicy Bypass -File packaging\build.ps1 -Python .venv\Scrip
 - PDFs made from documents use real installed fonts (Cyrillic italics look right, copied text keeps its spaces), and Word documents convert through Word when it is installed.
 
 **What's in 2.0**
-- Audio: MP3, M4A, WAV, FLAC, OGG, OPUS, AIFF, WMA, ALAC; bitrate presets; trim with waveform, fades and listening; speed with pitch kept; stereo to mono.
+- Audio: MP3, M4A, WAV, FLAC, OGG, OPUS, AIFF, WMA, ALAC; bitrate presets; trim with waveform, fades and listening; speed with pitch kept; stereo to mono; loudness normalization.
 - Video: MP4, MKV, WEBM, MOV, AVI, GIF; compress to 10/25/50 MB or ½ / ¼ with GPU encoders (NVENC, Quick Sync, AMF) and a CPU fallback; trim (exact or keyframe-fast), crop, lossless rotate, speed, mute, mono sound, extract soundtrack, frame snapshot.
 - A matte espresso-and-terracotta look, light or dark with Windows (or pinned in Settings → Theme), animated at your monitor's refresh rate.
 - English, Russian and Ukrainian UI, following Windows or set in Settings.

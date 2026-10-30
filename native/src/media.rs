@@ -773,6 +773,7 @@ pub enum Op {
     Rotate,
     Mute,
     Mono,
+    Normalize,
     ExtractAudio,
     Frame(Option<f64>),
     Trim { start: f64, end: f64, fade_in: f64, fade_out: f64, fast: bool },
@@ -793,6 +794,7 @@ impl Op {
             ("tool", "Rotate") => Op::Rotate,
             ("tool", "Mute") => Op::Mute,
             ("tool", "Mono") => Op::Mono,
+            ("tool", "Normalize") => Op::Normalize,
             ("tool", "Audio") => Op::ExtractAudio,
             ("tool", "Frame") => Op::Frame(None),
             _ => return None,
@@ -807,6 +809,7 @@ impl Op {
             Op::Rotate => t("Rotating…").into(),
             Op::Mute => t("Removing the sound…").into(),
             Op::Mono => t("Mixing down to mono…").into(),
+            Op::Normalize => t("Evening out the loudness…").into(),
             Op::ExtractAudio => t("Saving the soundtrack…").into(),
             Op::Frame(_) => t("Saving a frame…").into(),
             Op::Trim { .. } => t("Trimming…").into(),
@@ -1298,6 +1301,13 @@ pub fn run(op: &Op, src: &Path, ctl: &Ctl) -> Res<Vec<PathBuf>> {
             let o = Transcode { af: vec![s("aformat=channel_layouts=mono")], ..Default::default() };
             transcode(src, &info, target, &sibling(src, t("Mono"), &ext), o, ctl)?
         }
+        Op::Normalize => {
+            require_audio(&info)?;
+            let (target, ext) = keep_target(src, &info);
+            // one pass of EBU R128 to the level YouTube and Spotify play at
+            let o = Transcode { af: vec![s("loudnorm=I=-14:TP=-1:LRA=11")], ..Default::default() };
+            transcode(src, &info, target, &sibling(src, t("Normalized"), &ext), o, ctl)?
+        }
         Op::ExtractAudio => {
             let a = require_audio(&info)?;
             let target = EXTRACT.iter().find(|(c, _)| *c == a.codec).map(|(_, t)| *t).unwrap_or("M4A");
@@ -1407,6 +1417,7 @@ pub fn summarize(op: &Op, srcs: &[PathBuf], outs: &[PathBuf]) -> Outcome {
                 Op::Rotate => t("Rotated 90°"),
                 Op::Mute => t("Sound removed"),
                 Op::Mono => t("Sound is mono now"),
+                Op::Normalize => t("Loudness evened out"),
                 Op::ExtractAudio => t("Soundtrack saved"),
                 Op::Frame(_) => t("Frame saved"),
                 Op::Trim { .. } => t("Trimmed"),
