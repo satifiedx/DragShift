@@ -772,6 +772,7 @@ pub enum Op {
     Bitrate(u32),
     Rotate,
     Mute,
+    Mono,
     ExtractAudio,
     Frame(Option<f64>),
     Trim { start: f64, end: f64, fade_in: f64, fade_out: f64, fast: bool },
@@ -791,6 +792,7 @@ impl Op {
             ("enc", spec) => Op::Encode(VideoPreset::from_spec(spec)?),
             ("tool", "Rotate") => Op::Rotate,
             ("tool", "Mute") => Op::Mute,
+            ("tool", "Mono") => Op::Mono,
             ("tool", "Audio") => Op::ExtractAudio,
             ("tool", "Frame") => Op::Frame(None),
             _ => return None,
@@ -804,6 +806,7 @@ impl Op {
             Op::SizePercent(_) | Op::Bitrate(_) | Op::Encode(_) => t("Compressing…").into(),
             Op::Rotate => t("Rotating…").into(),
             Op::Mute => t("Removing the sound…").into(),
+            Op::Mono => t("Mixing down to mono…").into(),
             Op::ExtractAudio => t("Saving the soundtrack…").into(),
             Op::Frame(_) => t("Saving a frame…").into(),
             Op::Trim { .. } => t("Trimming…").into(),
@@ -1285,6 +1288,16 @@ pub fn run(op: &Op, src: &Path, ctl: &Ctl) -> Res<Vec<PathBuf>> {
             let (target, ext) = keep_target(src, &info);
             transcode(src, &info, target, &sibling(src, t("Muted"), &ext), Transcode { mute: true, ..Default::default() }, ctl)?
         }
+        Op::Mono => {
+            require_audio(&info)?;
+            if info.audio.iter().all(|a| a.channels == 1) {
+                return Err(note(t("The sound is already mono.").into()));
+            }
+            let (target, ext) = keep_target(src, &info);
+            // the picture is copied as is, only the sound is re-encoded
+            let o = Transcode { af: vec![s("aformat=channel_layouts=mono")], ..Default::default() };
+            transcode(src, &info, target, &sibling(src, t("Mono"), &ext), o, ctl)?
+        }
         Op::ExtractAudio => {
             let a = require_audio(&info)?;
             let target = EXTRACT.iter().find(|(c, _)| *c == a.codec).map(|(_, t)| *t).unwrap_or("M4A");
@@ -1393,6 +1406,7 @@ pub fn summarize(op: &Op, srcs: &[PathBuf], outs: &[PathBuf]) -> Outcome {
             let title = match op {
                 Op::Rotate => t("Rotated 90°"),
                 Op::Mute => t("Sound removed"),
+                Op::Mono => t("Sound is mono now"),
                 Op::ExtractAudio => t("Soundtrack saved"),
                 Op::Frame(_) => t("Frame saved"),
                 Op::Trim { .. } => t("Trimmed"),

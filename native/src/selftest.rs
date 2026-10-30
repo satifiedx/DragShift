@@ -39,7 +39,7 @@ fn make_samples(dir: &Path) -> Option<Vec<PathBuf>> {
     let p = |n: &str| dir.join(n);
     let v = p("clip.mp4");
     let ok = ffmpeg(&["-f", "lavfi", "-i", "testsrc2=s=1280x720:r=30:d=6", "-f", "lavfi", "-i", "sine=f=440:d=6:sample_rate=48000",
-                      "-c:v", "libx264", "-preset", "ultrafast", "-g", "30", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "128k",
+                      "-c:v", "libx264", "-preset", "ultrafast", "-g", "30", "-pix_fmt", "yuv420p", "-ac", "2", "-c:a", "aac", "-b:a", "128k",
                       "-shortest", v.to_str()?])
         && ffmpeg(&["-i", v.to_str()?, "-c", "copy", p("clip.mkv").to_str()?])
         && ffmpeg(&["-display_rotation:v:0", "90", "-i", v.to_str()?, "-c", "copy", p("phone.mp4").to_str()?])
@@ -88,6 +88,17 @@ fn video_no_audio(i: &Info, o: &Info) -> Result<(), String> {
     same_len(i, o)
 }
 
+fn mono(i: &Info, o: &Info) -> Result<(), String> {
+    if o.video.len() != i.video.len() {
+        return Err(format!("video {} → {}", i.video.len(), o.video.len()));
+    }
+    match o.audio.first() {
+        Some(a) if a.channels == 1 => same_len(i, o),
+        Some(a) => Err(format!("{} channels", a.channels)),
+        None => Err("no audio in output".into()),
+    }
+}
+
 fn video_ok(i: &Info, o: &Info) -> Result<(), String> {
     if o.video.is_empty() {
         return Err("no video".into());
@@ -134,6 +145,10 @@ fn checks() -> Vec<Check> {
     }));
     v.push(c(Rotate, "clip.mkv", "mkv", |i, o| if o.size().map(|s| s.0) == i.size().map(|s| s.1) { Ok(()) } else { Err(format!("size {:?}", o.size())) }));
     v.push(c(Mute, "clip.mp4", "mp4", video_no_audio));
+    v.push(c(Mono, "clip.mp4", "mp4", mono));
+    v.push(c(Mono, "clip.mkv", "mkv", mono));
+    v.push(c(Mono, "tone.mp3", "mp3", mono));
+    v.push(c(Mono, "tone.flac", "flac", mono));
     v.push(c(ExtractAudio, "clip.mp4", "m4a", has_audio_only));
     v.push(c(Frame(None), "clip.mp4", "png", |_, o| if o.size() == Some((1280, 720)) { Ok(()) } else { Err(format!("{:?}", o.size())) }));
     v.push(c(Trim { start: 1.0, end: 4.0, fade_in: 0.0, fade_out: 0.0, fast: false }, "clip.mp4", "mp4", |_, o| dur_near(3.0)(o)));

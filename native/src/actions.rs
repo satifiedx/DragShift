@@ -216,6 +216,7 @@ pub fn rings_for(paths: &[PathBuf]) -> (Vec<Ring>, Option<Cat>) {
                 ("Rotate", "⟳", "90° clockwise"),
                 ("Speed", "⏩", "Faster or slower"),
                 ("Mute", "🔇", "Remove the sound"),
+                ("Mono", "◎", "Both channels into one"),
                 ("Audio", "♫", "Save the soundtrack"),
                 ("Frame", "▦", "Snapshot as PNG"),
             ];
@@ -248,7 +249,8 @@ pub fn rings_for(paths: &[PathBuf]) -> (Vec<Ring>, Option<Cat>) {
         Cat::Audio => {
             rings.push(convert_ring(AUDIO_TARGETS, &ext, None));
             let mut items = vec![Item::tool(t("Trim"), "✂", "tool:Trim".into(), t("Waveform · fades")),
-                                 Item::tool(t("Speed"), "⏩", "tool:Speed".into(), t("Faster or slower"))];
+                                 Item::tool(t("Speed"), "⏩", "tool:Speed".into(), t("Faster or slower")),
+                                 Item::tool(t("Mono"), "◎", "tool:Mono".into(), t("Both channels into one"))];
             for k in BITRATES {
                 let hint = match k {
                     320 => t("Best MP3 quality"),
