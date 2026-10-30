@@ -1,0 +1,19 @@
+qt.qpa.fonts: Populating font family aliases took 99 ms. Replace uses of missing font family "Sans-serif" with one that exists to avoid this cost. 
+requestActivate() called for  QWidgetWindow(0x600002d25500, name="RadialMenuClassWindow")  which has Qt::WindowDoesNotAcceptFocus set.
+menu: 1 file(s) from the drag pasteboard
+menu: 1 file(s) from the drag pasteboard
+menu: 1 file(s) from the drag pasteboard
+IOServiceMatchingfailed for: AppleM2ScalerParavirtDriver
+menu: 1 file(s) from the drag pasteboard
+menu: 1 file(s) from the drag pasteboard
+menu: 1 file(s) from the drag pasteboard
+menu: 1 file(s) from the drag pasteboard
+menu: 1 file(s) from the drag pasteboard
+menu: 1 file(s) from the drag pasteboard
+menu: 1 file(s) from the drag pasteboard
+menu: 1 file(s) from the drag pasteboard
+menu: 2 file(s) from the drag pasteboard
+menu: 1 file(s) from the drag pasteboard
+menu: 1 file(s) from the drag pasteboard
+menu: 1 file(s) from the drag pasteboard
+menu: 1 file(s) from the drag pasteboard

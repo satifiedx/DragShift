@@ -1,0 +1,121 @@
+[
+ {
+  "name": "JPG \u2192 PNG",
+  "where": "mac desktop",
+  "status": "PASS",
+  "detail": "D-Photo.png \u00b7 2400\u00d71600",
+  "seconds": 11.3
+ },
+ {
+  "name": "JPG \u2192 WEBP",
+  "where": "mac desktop",
+  "status": "PASS",
+  "detail": "D-Photo.webp \u00b7 2400\u00d71600",
+  "seconds": 9.8
+ },
+ {
+  "name": "JPG \u2192 HEIC",
+  "where": "mac desktop",
+  "status": "PASS",
+  "detail": "D-Photo.heic \u00b7 2400\u00d71600",
+  "seconds": 10.3
+ },
+ {
+  "name": "JPG \u2192 PDF",
+  "where": "mac desktop",
+  "status": "FAIL",
+  "detail": "AssertionError: no output file appeared",
+  "seconds": 23.5
+ },
+ {
+  "name": "PNG \u2192 JPG",
+  "where": "mac desktop",
+  "status": "PASS",
+  "detail": "D-Graphic.jpg \u00b7 800\u00d7533",
+  "seconds": 8.7
+ },
+ {
+  "name": "PDF \u2192 JPG (3 pages)",
+  "where": "mac desktop",
+  "status": "FAIL",
+  "detail": "AssertionError: no output file appeared",
+  "seconds": 23.4
+ },
+ {
+  "name": "PDF \u2192 TXT",
+  "where": "mac desktop",
+  "status": "PASS",
+  "detail": "D-Report.txt",
+  "seconds": 8.9
+ },
+ {
+  "name": "DOCX \u2192 PDF",
+  "where": "mac desktop",
+  "status": "FAIL",
+  "detail": "AssertionError: no output file appeared",
+  "seconds": 23.2
+ },
+ {
+  "name": "PDF Split",
+  "where": "mac desktop",
+  "status": "PASS",
+  "detail": "3 PDFs",
+  "seconds": 10.6
+ },
+ {
+  "name": "PDF Rotate",
+  "where": "mac desktop",
+  "status": "PASS",
+  "detail": "all pages at 90\u00b0",
+  "seconds": 10.0
+ },
+ {
+  "name": "PDF Compress",
+  "where": "mac desktop",
+  "status": "PASS",
+  "detail": "227 KB \u2192 108 KB",
+  "seconds": 10.1
+ },
+ {
+  "name": "Merge 2 PDFs",
+  "where": "mac desktop",
+  "status": "PASS",
+  "detail": "5 pages",
+  "seconds": 13.0
+ },
+ {
+  "name": "Compress (window, Enter)",
+  "where": "mac desktop",
+  "status": "FAIL",
+  "detail": "AssertionError: no output file appeared",
+  "seconds": 26.5
+ },
+ {
+  "name": "Resize 50% (window, Enter)",
+  "where": "mac desktop",
+  "status": "PASS",
+  "detail": "2400\u00d71600 \u2192 1200\u00d7800",
+  "seconds": 12.2
+ },
+ {
+  "name": "Add BG (window, Enter)",
+  "where": "mac desktop",
+  "status": "FAIL",
+  "detail": "AssertionError: no output file appeared",
+  "seconds": 27.1
+ },
+ {
+  "name": "Metadata: remove all (Enter)",
+  "where": "mac desktop",
+  "status": "PASS",
+  "detail": "0 metadata fields left",
+  "seconds": 12.4
+ },
+ {
+  "name": "Slices filled before the mouse moves",
+  "where": "mac desktop",
+  "status": "PASS",
+  "detail": "files read from the drag pasteboard",
+  "seconds": 0
+ }
+]
